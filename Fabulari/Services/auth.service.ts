@@ -7,7 +7,7 @@ export interface CurrentUser {
     email: string;
     username: string;
     birthdate: string;
-    rold: string;
+    role: string;
 }
 
 interface AuthResponse extends Partial<CurrentUser> {
