@@ -1,28 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: { userId: number; role: string }[];
-}
-
-interface Room {
-  id: number;
-  groupId: number;
-  name: string;
-  description: string;
-}
-
-interface CurrentUser {
-  id: number;
-  username: string;
-  role: string;
-}
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-chat',
@@ -30,11 +9,13 @@ interface CurrentUser {
   templateUrl: './chat.html',
   styleUrl: './chat.css',
 })
+
 export class Chat {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
-  protected readonly currentUser = signal<CurrentUser | null>(null);
+  protected readonly currentUser = this.auth.currentUser;
   protected readonly myGroups = signal<Group[]>([]);
   protected readonly rooms = signal<Room[]>([]);
 
@@ -58,12 +39,6 @@ export class Chat {
   protected readonly isSuperAdmin = computed(() => this.currentUser()?.role === 'superadmin');
 
   ngOnInit() {
-    const stored = localStorage.getItem('currentUser');
-    if (!stored) {
-      this.router.navigateByUrl('/');
-      return;
-    }
-    this.currentUser.set(JSON.parse(stored));
     this.loadGroups();
   }
 
@@ -113,7 +88,7 @@ export class Chat {
   }
 
   logout() {
-    localStorage.removeItem('currentUser');
+    this.auth.logout();
     this.router.navigateByUrl('/');
   }
 }

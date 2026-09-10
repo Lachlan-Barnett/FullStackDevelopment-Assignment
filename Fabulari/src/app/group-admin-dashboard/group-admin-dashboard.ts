@@ -2,37 +2,7 @@ import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-
-interface Member {
-  userId: number;
-  role: string;
-}
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: Member[];
-}
-
-interface Room {
-  id: number;
-  groupId: number;
-  name: string;
-  description: string;
-}
-
-interface AppUser {
-  id: number;
-  username: string;
-  email: string;
-}
-
-interface CurrentUser {
-  id: number;
-}
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-group-admin-dashboard',
