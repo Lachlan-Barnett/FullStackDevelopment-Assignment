@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -10,7 +10,7 @@ import { Router, RouterLink } from '@angular/router';
   styleUrl: './login.css',
 })
 export class Login {
-  private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
   protected readonly showPassword = signal(false);
@@ -23,14 +23,10 @@ export class Login {
   }
   
   onSubmit() {
-    this.http.post<any>('http://localhost:3000/api/auth', {
-      email: this.email,
-      password: this.password,
-    }).subscribe({
+    this.auth.login(this.email, this.password).subscribe({
       next: (response) => {
         if (response.valid) {
           this.errorMessage.set('');
-          localStorage.setItem('currentUser', JSON.stringify(response));
           this.router.navigateByUrl('/chat');
         } else {
           this.errorMessage.set('Invalid email or password');
