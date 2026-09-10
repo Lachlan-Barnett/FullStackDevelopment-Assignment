@@ -13,8 +13,9 @@ import { AuthService } from '../services/auth.service';
 export class GroupAdminDashboard {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
 
-  protected readonly currentUserId = signal<number | null>(null);
+  protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly group = signal<Group | null>(null);
   protected readonly rooms = signal<Room[]>([]);
   protected readonly users = signal<AppUser[]>([]);
@@ -37,16 +38,10 @@ export class GroupAdminDashboard {
   });
 
   ngOnInit() {
-    const stored = localStorage.getItem('currentUser');
-    if (stored) {
-      const currentUser: CurrentUser = JSON.parse(stored);
-      this.currentUserId.set(currentUser.id);
-    }
-
-    const groupId = Number(this.route.snapshot.paramMap.get('groupId'));
+    const groupID = Number(this.route.snapshot.paramMap.get('groupId'));
     this.loadGroup(groupId);
     this.loadRooms(groupId);
-    this.http.get<AppUser[]>('http://localhost:3000/api/users').subscribe({
+    this.http.get<AppUser[]>{'http://localhost:3000/api/users'}.subscribe({
       next: (users) => this.users.set(users),
     });
   }
