@@ -1,15 +1,15 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService } from '../Services/auth.service';
+import { AuthService } from '../services/auth.service';
 
-export const superAdminGuard: CanActivateFn = () => {
+export const authGuard: CanActivateFn = () => {
     const auth = inject(AuthService);
     const router = inject(Router);
 
-    if (auth.isSuperAdmin()) {
+    if (auth.isLoggedIn()) {
         return true;
     }
 
-    router.navigateByUrl('/chat');
+    router.navigateByUrl('/');
     return false;
 };

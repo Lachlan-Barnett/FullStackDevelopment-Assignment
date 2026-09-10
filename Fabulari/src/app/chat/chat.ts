@@ -3,6 +3,22 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
+interface Group {
+  id: number;
+  name: string;
+  description: string;
+  ageLimit: number;
+  colourTheme: string;
+  members: { userId: number; role: string }[];
+}
+
+interface Room {
+  id: number;
+  groupId: number;
+  name: string;
+  description: string;
+}
+
 @Component({
   selector: 'app-chat',
   imports: [RouterLink],

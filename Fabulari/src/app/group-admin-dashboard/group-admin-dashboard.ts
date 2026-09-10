@@ -4,6 +4,33 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
+interface Member {
+  userId: number;
+  role: string;
+}
+
+interface Group {
+  id: number;
+  name: string;
+  description: string;
+  ageLimit: number;
+  colourTheme: string;
+  members: Member[];
+}
+
+interface Room {
+  id: number;
+  groupId: number;
+  name: string;
+  description: string;
+}
+
+interface AppUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
 @Component({
   selector: 'app-group-admin-dashboard',
   imports: [FormsModule, RouterLink],
@@ -39,9 +66,9 @@ export class GroupAdminDashboard {
 
   ngOnInit() {
     const groupID = Number(this.route.snapshot.paramMap.get('groupId'));
-    this.loadGroup(groupId);
-    this.loadRooms(groupId);
-    this.http.get<AppUser[]>{'http://localhost:3000/api/users'}.subscribe({
+    this.loadGroup(groupID);
+    this.loadRooms(groupID);
+    this.http.get<AppUser[]>('http://localhost:3000/api/users').subscribe({
       next: (users) => this.users.set(users),
     });
   }
