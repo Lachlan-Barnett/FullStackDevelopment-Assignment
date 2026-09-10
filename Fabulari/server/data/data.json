@@ -2,7 +2,7 @@
   "users": [
     {
       "id": 1,
-      "email": "super@test.com",
+      "email": "admin@test.com",
       "username": "admin",
       "birthdate": "2000-01-01",
       "password": "123",
@@ -10,17 +10,17 @@
     },
     {
       "id": 2,
-      "email": "lachlan@test.com",
-      "username": "Lachlan",
-      "birthdate": "2006-01-30",
+      "email": "user1@com.au",
+      "username": "user1",
+      "birthdate": "2000-01-01",
       "password": "123",
       "role": "user"
     },
     {
       "id": 3,
-      "email": "jack@test.com",
-      "username": "jack",
-      "birthdate": "2005-02-15",
+      "email": "user2@com.au",
+      "username": "user2",
+      "birthdate": "2000-01-01",
       "password": "123",
       "role": "user"
     }
@@ -28,8 +28,8 @@
   "groups": [
     {
       "id": 1,
-      "name": "Demo Group",
-      "description": "first group",
+      "name": "help",
+      "description": "anything",
       "ageLimit": 13,
       "colourTheme": "Blue",
       "members": [
@@ -40,10 +40,6 @@
         {
           "userId": 3,
           "role": "member"
-        },
-        {
-          "userId": 1,
-          "role": "member"
         }
       ]
     }
@@ -52,8 +48,8 @@
     {
       "id": 1,
       "groupId": 1,
-      "name": "General",
-      "description": "Default channel"
+      "name": "start",
+      "description": "start"
     }
   ]
 }
