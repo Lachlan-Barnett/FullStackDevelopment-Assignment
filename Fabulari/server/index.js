@@ -110,25 +110,87 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.post('/api/groups', requireSuperAdmin, (req, res) => {
-    const { name, description, ageLimit, colourTheme, adminUserId } = req.body;
+  // Users ask for a group; the super admin creates it by approving the request.
+  // The requester becomes the new group's first admin.
+  app.post('/api/group-requests', (req, res) => {
+    if (req.user.role === 'superadmin') {
+      return res.status(403).json({ message: 'The super admin cannot request groups' });
+    }
 
-    if (!name || !adminUserId) {
-      return res.status(400).json({ message: 'Name and an admin user are required' });
+    const { name, description, ageLimit, colourTheme } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: 'A group name is required' });
+
+    const nameTaken = (n) => n.toLowerCase() === name.trim().toLowerCase();
+    if (db.groups.some((g) => nameTaken(g.name))) {
+      return res.status(409).json({ message: 'A group with that name already exists' });
+    }
+    if (db.groupRequests.some((r) => r.status === 'pending' && nameTaken(r.name))) {
+      return res.status(409).json({ message: 'A group with that name has already been requested' });
+    }
+
+    const request = {
+      id: nextId(db.groupRequests),
+      requestedBy: req.user.id,
+      name: name.trim(),
+      description: description?.trim() || '',
+      ageLimit: Math.max(0, Number(ageLimit) || 0),
+      colourTheme: colourTheme || 'Blue',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: new Date().toISOString(),
+    };
+    db.groupRequests.push(request);
+    saveDb(db);
+    res.json(request);
+  });
+
+  app.get('/api/group-requests/mine', (req, res) => {
+    res.json(db.groupRequests.filter((r) => r.requestedBy === req.user.id));
+  });
+
+  app.get('/api/admin/group-requests', requireSuperAdmin, (req, res) => {
+    const pending = db.groupRequests.filter((r) => r.status === 'pending');
+    res.json(
+      pending.map((r) => ({ ...r, requesterName: db.users.find((u) => u.id === r.requestedBy)?.username ?? null })),
+    );
+  });
+
+  app.put('/api/admin/group-requests/:requestId', requireSuperAdmin, (req, res) => {
+    const request = db.groupRequests.find((r) => r.id === Number(req.params.requestId));
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
+
+    const approve = req.body.approve === true;
+
+    if (!approve) {
+      request.status = 'rejected';
+      request.reviewedBy = req.user.id;
+      request.rejectionReason = req.body.reason?.trim() || null;
+      saveDb(db);
+      return res.json(request);
+    }
+
+    if (!db.users.some((u) => u.id === request.requestedBy)) {
+      return res.status(400).json({ message: 'The requesting user no longer exists' });
+    }
+    if (db.groups.some((g) => g.name.toLowerCase() === request.name.toLowerCase())) {
+      return res.status(409).json({ message: 'A group with that name already exists' });
     }
 
     const group = {
       id: nextId(db.groups),
-      name,
-      description: description || '',
-      ageLimit: Number(ageLimit) || 0,
-      colourTheme: colourTheme || 'Blue',
-      members: [{ userId: Number(adminUserId), role: 'admin' }],
+      name: request.name,
+      description: request.description,
+      ageLimit: request.ageLimit,
+      colourTheme: request.colourTheme,
+      members: [{ userId: request.requestedBy, role: 'admin' }],
     };
-
     db.groups.push(group);
+    request.status = 'approved';
+    request.reviewedBy = req.user.id;
     saveDb(db);
-    res.json(group);
+    res.json({ request, group });
   });
 
   app.put('/api/groups/:groupId', requireGroupAdmin, (req, res) => {

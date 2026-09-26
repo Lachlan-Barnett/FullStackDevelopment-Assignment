@@ -10,20 +10,32 @@
 <div class="dashboard-shell">
   <div class="card panel">
     <div class="card-body">
-      <div class="panel-title">Create Group</div>
-      <form class="new-group-form" (ngSubmit)="createGroup()">
-        <input type="text" class="form-control" placeholder="Group name" [(ngModel)]="newGroupName" name="newGroupName" required>
-        <input type="text" class="form-control" placeholder="Description" [(ngModel)]="newGroupDescription" name="newGroupDescription">
-        <input type="number" class="form-control" placeholder="Age limit" [(ngModel)]="newGroupAgeLimit" name="newGroupAgeLimit" min="0">
-        <input type="text" class="form-control" placeholder="Colour theme" [(ngModel)]="newGroupColourTheme" name="newGroupColourTheme">
-        <select class="form-control" [(ngModel)]="newGroupAdminId" name="newGroupAdminId" required>
-          <option [ngValue]="null" disabled>Assign group admin&hellip;</option>
-          @for (user of users(); track user.id) {
-            <option [ngValue]="user.id">{{ user.username }} ({{ user.email }})</option>
-          }
-        </select>
-        <button type="submit" class="btn btn-dark">Create Group</button>
-      </form>
+      <div class="panel-title">Group Requests</div>
+      @for (request of groupRequests(); track request.id) {
+        <div class="request-card">
+          <div class="request-header">
+            <span class="group-name">{{ request.name }}</span>
+            <span class="group-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
+          </div>
+          <div class="group-meta">
+            {{ request.description || 'No description' }} &middot; Age {{ request.ageLimit }}+ &middot; {{ request.colourTheme }}
+          </div>
+          <div class="request-actions">
+            <input
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="Rejection reason (optional)"
+              [attr.aria-label]="'Rejection reason for ' + request.name"
+              [(ngModel)]="rejectReasons[request.id]"
+              [name]="'reason-' + request.id"
+            >
+            <button type="button" class="btn btn-sm btn-outline-success" (click)="actionGroupRequest(request, true)">Approve</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionGroupRequest(request, false)">Reject</button>
+          </div>
+        </div>
+      } @empty {
+        <p class="empty-note">No pending group requests.</p>
+      }
     </div>
   </div>
 

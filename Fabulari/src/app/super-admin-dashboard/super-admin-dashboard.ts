@@ -19,6 +19,17 @@ interface AppUser {
   role: string;
 }
 
+interface GroupRequest {
+  id: number;
+  requestedBy: number;
+  requesterName: string | null;
+  name: string;
+  description: string;
+  ageLimit: number;
+  colourTheme: string;
+  createdAt: string;
+}
+
 interface AuditLogEntry {
   type: string;
   details: string;
@@ -43,15 +54,19 @@ export class SuperAdminDashboard {
     { type: 'ROOM_APPROVED', details: 'General channel approved for Demo Group', timestamp: '2026-08-01' },
   ]);
 
-  protected newGroupName = '';
-  protected newGroupDescription = '';
-  protected newGroupAgeLimit = 13;
-  protected newGroupColourTheme = 'Blue';
-  protected newGroupAdminId: number | null = null;
+  protected readonly groupRequests = signal<GroupRequest[]>([]);
+  protected rejectReasons: Record<number, string> = {};
 
   ngOnInit() {
     this.loadGroups();
     this.loadUsers();
+    this.loadGroupRequests();
+  }
+
+  private loadGroupRequests() {
+    this.http.get<GroupRequest[]>('http://localhost:3000/api/admin/group-requests').subscribe({
+      next: (requests) => this.groupRequests.set(requests),
+    });
   }
 
   private loadGroups() {
@@ -74,31 +89,20 @@ export class SuperAdminDashboard {
     return group.members.filter((m) => m.role === 'admin').length;
   }
 
-  createGroup() {
-    if (!this.newGroupName.trim() || !this.newGroupAdminId) {
-      this.errorMessage.set('A name and an assigned admin are required.');
-      return;
-    }
-
+  actionGroupRequest(request: GroupRequest, approve: boolean) {
+    this.errorMessage.set('');
     this.http
-      .post<Group>('http://localhost:3000/api/groups', {
-        name: this.newGroupName,
-        description: this.newGroupDescription,
-        ageLimit: this.newGroupAgeLimit,
-        colourTheme: this.newGroupColourTheme,
-        adminUserId: this.newGroupAdminId,
+      .put(`http://localhost:3000/api/admin/group-requests/${request.id}`, {
+        approve,
+        reason: this.rejectReasons[request.id] ?? '',
       })
       .subscribe({
         next: () => {
-          this.errorMessage.set('');
-          this.newGroupName = '';
-          this.newGroupDescription = '';
-          this.newGroupAgeLimit = 13;
-          this.newGroupColourTheme = 'Blue';
-          this.newGroupAdminId = null;
-          this.loadGroups();
+          delete this.rejectReasons[request.id];
+          this.loadGroupRequests();
+          if (approve) this.loadGroups();
         },
-        error: () => this.errorMessage.set('Unable to create that group.'),
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
       });
   }
 }
