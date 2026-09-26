@@ -279,11 +279,14 @@ function initializeRoutes(app) {
     const member = group.members.find((m) => m.userId === userId);
     if (!member) return res.status(404).json({ message: 'User is not a member of this group' });
 
-    if (req.user.id === userId) {
-      return res.status(403).json({ message: 'You cannot change your own admin status.' });
+    // Any admin may demote any admin, including themselves, as long as one admin is left.
+    const newRole = req.body.role === 'admin' ? 'admin' : 'member';
+    const adminCount = group.members.filter((m) => m.role === 'admin').length;
+    if (member.role === 'admin' && newRole === 'member' && adminCount === 1) {
+      return res.status(409).json({ message: 'A group must always have at least one admin. Promote someone else first.' });
     }
 
-    member.role = req.body.role === 'admin' ? 'admin' : 'member';
+    member.role = newRole;
     saveDb(db);
     res.json(group);
   });

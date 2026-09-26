@@ -34,13 +34,13 @@
       <div class="panel-title">Members</div>
       @for (member of members(); track member.userId) {
         <div class="member-row">
-          <span class="member-name">{{ member.user?.username ?? ('User #' + member.userId) }}</span>
+          <span class="member-name">{{ member.user?.username ?? ('User #' + member.userId) }}{{ isSelf(member) ? ' (you)' : '' }}</span>
           <span class="role-badge" [class.role-admin]="member.role === 'admin'">{{ member.role }}</span>
           <button
             type="button"
             class="btn btn-sm btn-outline-dark"
-            [disabled]="isSelf(member)"
-            [title]="isSelf(member) ? 'You cannot change your own admin status.' : ''"
+            [disabled]="isLastAdmin(member)"
+            [title]="isLastAdmin(member) ? 'A group must always have at least one admin. Promote someone else first.' : ''"
             (click)="toggleRole(member)"
           >
             {{ member.role === 'admin' ? 'Demote' : 'Promote' }}

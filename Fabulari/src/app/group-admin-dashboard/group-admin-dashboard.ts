@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 interface Member {
@@ -48,6 +48,7 @@ interface AppUser {
 export class GroupAdminDashboard {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
   protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
@@ -163,18 +164,36 @@ export class GroupAdminDashboard {
     return member.userId === this.currentUserId();
   }
 
+  // The group must always keep one admin, so the last admin can't be demoted.
+  isLastAdmin(member: Member) {
+    const admins = this.group()?.members.filter((m) => m.role === 'admin') ?? [];
+    return member.role === 'admin' && admins.length === 1;
+  }
+
   toggleRole(member: Member) {
     const group = this.group();
-    if (!group || this.isSelf(member)) return;
+    if (!group || this.isLastAdmin(member)) return;
 
     const newRole = member.role === 'admin' ? 'member' : 'admin';
+    const demotingSelf = this.isSelf(member) && newRole === 'member';
+    if (demotingSelf && !confirm('Remove your own admin role? You will no longer be able to manage this group.')) {
+      return;
+    }
+
+    this.errorMessage.set('');
     this.http
       .put<Group>(`http://localhost:3000/api/groups/${group.id}/members/${member.userId}/role`, {
         role: newRole,
       })
       .subscribe({
-        next: (updated) => this.group.set(updated),
-        error: () => this.errorMessage.set('Unable to update that member.'),
+        next: (updated) => {
+          if (demotingSelf) {
+            this.router.navigateByUrl('/chat');
+          } else {
+            this.group.set(updated);
+          }
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to update that member.'),
       });
   }
 }
