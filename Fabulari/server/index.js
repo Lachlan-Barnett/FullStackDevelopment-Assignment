@@ -188,6 +188,39 @@ function initializeRoutes(app) {
     saveDb(db);
     res.json({ deleted: true });
   });
+
+  // A report is always filed within a group, so that group's admins can act on it.
+  app.post('/api/reports', (req, res) => {
+    const { groupId, username, reason } = req.body;
+    if (!groupId || !username?.trim() || !reason?.trim()) {
+      return res.status(400).json({ message: 'Group, username and reason are required' });
+    }
+
+    const group = db.groups.find((g) => g.id === Number(groupId));
+    if (!group) return res.status(404).json({ message: 'Group not found' });
+    if (!group.members.some((m) => m.userId === req.user.id)) {
+      return res.status(403).json({ message: 'You can only report users in groups you belong to' });
+    }
+
+    const reported = db.users.find(
+      (u) => u.username === username.trim() && group.members.some((m) => m.userId === u.id),
+    );
+    if (!reported) return res.status(404).json({ message: `No member called "${username.trim()}" in that group` });
+    if (reported.id === req.user.id) return res.status(400).json({ message: 'You cannot report yourself' });
+
+    const report = {
+      id: nextId(db.reports),
+      reportedUserId: reported.id,
+      reportedBy: req.user.id,
+      groupId: group.id,
+      reason: reason.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    db.reports.push(report);
+    saveDb(db);
+    res.json(report);
+  });
 }
 
 module.exports = initializeRoutes;

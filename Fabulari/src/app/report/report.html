@@ -3,16 +3,31 @@
     <h1 class="auth-title">Submit Report</h1>
     <form (ngSubmit)="onSubmit()">
       <div class="form-field">
+        <label for="groupId" class="form-label">Group</label>
+        <select class="form-control" id="groupId" name="groupId" [(ngModel)]="groupId">
+          <option [ngValue]="null" disabled>Select a group&hellip;</option>
+          @for (group of myGroups(); track group.id) {
+            <option [ngValue]="group.id">{{ group.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="form-field">
         <label for="username" class="form-label">Username</label>
         <input type="text" class="form-control" id="username" name="username" [(ngModel)]="username">
       </div>
       <div class="form-field">
-        <label for="username" class="form-label">Reason</label>
-        <textarea type="text" class="form-control" id="reason" name="reason" rows="4" [(ngModel)]="reason"></textarea>
+        <label for="reason" class="form-label">Reason</label>
+        <textarea class="form-control" id="reason" name="reason" rows="4" [(ngModel)]="reason"></textarea>
       </div>
+      @if (errorMessage()) {
+        <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>
+      }
+      @if (successMessage()) {
+        <div class="alert alert-success" role="status">{{ successMessage() }}</div>
+      }
       <div class="button-row">
-        <button type="button" class="btn btn-outline-dark">Submit</button>
-        <button type="submit" class="btn btn-outline-dark" routerLink="/settings">&lt; Back</button>
+        <button type="submit" class="btn btn-outline-dark">Submit</button>
+        <button type="button" class="btn btn-outline-dark" routerLink="/settings">&lt; Back</button>
       </div>
     </form>
   </div>

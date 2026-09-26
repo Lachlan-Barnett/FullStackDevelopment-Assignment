@@ -4,10 +4,12 @@ const path = require('path');
 const DB_PATH = path.join(__dirname, 'data', 'data.json');
 
 function loadDb() {
-  if (!fs.existsSync(DB_PATH)) {
-    return { users: [], groups: [], rooms: [] };
+  const db = fs.existsSync(DB_PATH) ? JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')) : {};
+  // Make sure every collection exists, even in data files saved before it was added.
+  for (const key of ['users', 'groups', 'rooms', 'reports']) {
+    db[key] ??= [];
   }
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  return db;
 }
 
 function saveDb(db) {
