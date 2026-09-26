@@ -148,7 +148,6 @@ export class GroupAdminDashboard {
     this.http
       .put<Group>(`http://localhost:3000/api/groups/${group.id}/members/${member.userId}/role`, {
         role: newRole,
-        actingUserId: this.currentUserId(),
       })
       .subscribe({
         next: (updated) => this.group.set(updated),

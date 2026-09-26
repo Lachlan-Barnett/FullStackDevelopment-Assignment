@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { loadDb, saveDb } = require('./data');
+const createAuth = require('./auth');
 
 const SALT_ROUNDS = 10;
 
@@ -15,6 +16,8 @@ function publicUser(user) {
 
 function initializeRoutes(app) {
   const db = loadDb();
+  const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
+    createAuth(db);
 
   app.post('/api/auth', async (req, res) => {
     const { email, password } = req.body;
@@ -29,7 +32,7 @@ function initializeRoutes(app) {
       return res.json({ valid: false });
     }
 
-    res.json({ valid: true, ...publicUser(user) });
+    res.json({ valid: true, token: signToken(user), ...publicUser(user) });
   });
 
   app.post('/api/signup', async (req, res) => {
@@ -48,16 +51,18 @@ function initializeRoutes(app) {
     db.users.push(user);
     saveDb(db);
 
-    res.json({ valid: true, ...publicUser(user) });
+    res.json({ valid: true, token: signToken(user), ...publicUser(user) });
   });
+
+  // Every route below this line requires a valid login token.
+  app.use('/api', requireAuth);
 
   app.get('/api/users', (req, res) => {
     res.json(db.users.map(publicUser));
   });
 
-  app.put('/api/users/:userId', (req, res) => {
-    const user = db.users.find((u) => u.id === Number(req.params.userId));
-    if (!user) return res.status(404).json({ message: 'User not found' });
+  app.put('/api/users/:userId', requireSelf, (req, res) => {
+    const user = req.user;
 
     const { username, birthdate } = req.body;
     if (username !== undefined) user.username = username;
@@ -67,9 +72,8 @@ function initializeRoutes(app) {
     res.json(publicUser(user));
   });
 
-  app.put('/api/users/:userId/password', async (req, res) => {
-    const user = db.users.find((u) => u.id === Number(req.params.userId));
-    if (!user) return res.status(404).json({ message: 'User not found' });
+  app.put('/api/users/:userId/password', requireSelf, async (req, res) => {
+    const user = req.user;
 
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
@@ -94,7 +98,7 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.post('/api/groups', (req, res) => {
+  app.post('/api/groups', requireSuperAdmin, (req, res) => {
     const { name, description, ageLimit, colourTheme, adminUserId } = req.body;
 
     if (!name || !adminUserId) {
@@ -115,9 +119,8 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.put('/api/groups/:groupId', (req, res) => {
-    const group = db.groups.find((g) => g.id === Number(req.params.groupId));
-    if (!group) return res.status(404).json({ message: 'Group not found' });
+  app.put('/api/groups/:groupId', requireGroupAdmin, (req, res) => {
+    const group = req.group;
 
     const { description, ageLimit, colourTheme } = req.body;
     if (description !== undefined) group.description = description;
@@ -132,7 +135,7 @@ function initializeRoutes(app) {
     const group = db.groups.find((g) => g.id === Number(req.params.groupId));
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
-    const userId = Number(req.body.userId);
+    const userId = req.user.id;
     if (group.members.some((m) => m.userId === userId)) {
       return res.status(409).json({ message: 'Already a member of this group' });
     }
@@ -142,15 +145,14 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.put('/api/groups/:groupId/members/:userId/role', (req, res) => {
-    const group = db.groups.find((g) => g.id === Number(req.params.groupId));
-    if (!group) return res.status(404).json({ message: 'Group not found' });
+  app.put('/api/groups/:groupId/members/:userId/role', requireGroupAdmin, (req, res) => {
+    const group = req.group;
 
     const userId = Number(req.params.userId);
     const member = group.members.find((m) => m.userId === userId);
     if (!member) return res.status(404).json({ message: 'User is not a member of this group' });
 
-    if (Number(req.body.actingUserId) === userId) {
+    if (req.user.id === userId) {
       return res.status(403).json({ message: 'You cannot change your own admin status.' });
     }
 
@@ -159,15 +161,13 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.get('/api/groups/:groupId/rooms', (req, res) => {
-    const groupId = Number(req.params.groupId);
+  app.get('/api/groups/:groupId/rooms', requireGroupMember, (req, res) => {
+    const groupId = req.group.id;
     res.json(db.rooms.filter((r) => r.groupId === groupId));
   });
 
-  app.post('/api/groups/:groupId/rooms', (req, res) => {
-    const groupId = Number(req.params.groupId);
-    const group = db.groups.find((g) => g.id === groupId);
-    if (!group) return res.status(404).json({ message: 'Group not found' });
+  app.post('/api/groups/:groupId/rooms', requireGroupAdmin, (req, res) => {
+    const groupId = req.group.id;
 
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ message: 'Name is required' });
@@ -178,8 +178,8 @@ function initializeRoutes(app) {
     res.json(room);
   });
 
-  app.delete('/api/groups/:groupId/rooms/:roomId', (req, res) => {
-    const groupId = Number(req.params.groupId);
+  app.delete('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, (req, res) => {
+    const groupId = req.group.id;
     const roomId = Number(req.params.roomId);
     const index = db.rooms.findIndex((r) => r.id === roomId && r.groupId === groupId);
     if (index === -1) return res.status(404).json({ message: 'Room not found' });

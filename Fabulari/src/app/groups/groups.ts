@@ -59,7 +59,7 @@ export class Groups {
     const userId = this.currentUserId();
     if (userId == null || this.hasApplied(group)) return;
 
-    this.http.post<Group>(`http://localhost:3000/api/groups/${group.id}/join`, { userId }).subscribe({
+    this.http.post<Group>(`http://localhost:3000/api/groups/${group.id}/join`, {}).subscribe({
       next: () => this.loadGroups(),
       error: () => this.errorMessage.set('Unable to join that group.'),
     });

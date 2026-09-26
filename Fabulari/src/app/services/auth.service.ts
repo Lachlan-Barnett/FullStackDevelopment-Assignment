@@ -13,9 +13,11 @@ export interface CurrentUser {
 interface AuthResponse extends Partial<CurrentUser> {
     valid: boolean;
     message?: string;
+    token?: string;
 }
 
 const STORAGE_KEY = 'currentUser';
+const TOKEN_KEY = 'authToken';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -42,17 +44,25 @@ export class AuthService {
     logout() {
         this._currentUser.set(null);
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+    }
+
+    getToken(): string | null {
+        return localStorage.getItem(TOKEN_KEY);
     }
 
     private handleAuthResponse(response: AuthResponse) {
-        if (!response.valid) return;
-        const { valid, message, ...user } = response;
+        if (!response.valid || !response.token) return;
+        const { valid, message, token, ...user } = response;
         this._currentUser.set(user as CurrentUser);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        localStorage.setItem(TOKEN_KEY, token);
     }
 
+    // A stored user without a token is from before login tokens existed, so treat it as logged out.
     private readStoredUser(): CurrentUser | null {
         const stored = localStorage.getItem(STORAGE_KEY);
-        return stored ? JSON.parse(stored) : null;
+        if (!stored || !localStorage.getItem(TOKEN_KEY)) return null;
+        return JSON.parse(stored);
     }
 }
