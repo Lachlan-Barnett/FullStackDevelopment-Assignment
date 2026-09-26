@@ -49,10 +49,7 @@ export class SuperAdminDashboard {
   protected readonly users = signal<AppUser[]>([]);
   protected readonly errorMessage = signal('');
 
-  protected readonly auditLog = signal<AuditLogEntry[]>([
-    { type: 'GROUP_CREATED', details: 'Demo Group was created', timestamp: '2026-08-01' },
-    { type: 'ROOM_APPROVED', details: 'General channel approved for Demo Group', timestamp: '2026-08-01' },
-  ]);
+  protected readonly auditLog = signal<AuditLogEntry[]>([]);
 
   protected readonly groupRequests = signal<GroupRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};

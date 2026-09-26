@@ -46,7 +46,6 @@
         <div class="group-row">
           <span class="group-name">{{ group.name }}</span>
           <span class="group-meta">{{ group.members.length }} member(s), {{ adminCountFor(group) }} admin(s)</span>
-          <button type="button" class="btn btn-sm btn-outline-danger">Delete</button>
         </div>
       } @empty {
         <p class="empty-note">No groups yet.</p>
@@ -61,7 +60,6 @@
         <div class="group-row">
           <span class="group-name">{{ user.username }} &mdash; {{ user.email }}</span>
           <span class="group-meta">{{ user.role }}</span>
-          <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="user.role === 'superadmin'">Ban</button>
         </div>
       }
     </div>
@@ -75,6 +73,8 @@
           <strong>{{ entry.type }}</strong> &mdash; {{ entry.details }}
           <span class="log-date">{{ entry.timestamp }}</span>
         </div>
+      } @empty {
+        <p class="empty-note">No audit entries yet.</p>
       }
     </div>
   </div>
