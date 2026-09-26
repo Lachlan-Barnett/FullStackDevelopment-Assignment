@@ -6,7 +6,7 @@ const DB_PATH = path.join(__dirname, 'data', 'data.json');
 function loadDb() {
   const db = fs.existsSync(DB_PATH) ? JSON.parse(fs.readFileSync(DB_PATH, 'utf-8')) : {};
   // Make sure every collection exists, even in data files saved before it was added.
-  for (const key of ['users', 'groups', 'rooms', 'reports']) {
+  for (const key of ['users', 'groups', 'rooms', 'reports', 'joinRequests']) {
     db[key] ??= [];
   }
   return db;

@@ -14,13 +14,27 @@
                 <div class="group-details">
                     <span class="group-name">{{ group.name }}</span>
                     <span class="group-meta">{{ group.description }} &middot; Age {{ group.ageLimit }}+ &middot; {{ group.colourTheme }}</span>
+                    @if (status(group) === 'rejected') {
+                        <span class="rejected-note">Request rejected{{ latestRequest(group)?.rejectionReason ? ': ' + latestRequest(group)?.rejectionReason : '' }}</span>
+                    }
                 </div>
-                @if (isAdmin(group)) {
-                    <span class="admin-badge">Admin</span>
+                @switch (status(group)) {
+                    @case ('admin') {
+                        <span class="admin-badge">Admin</span>
+                    }
+                    @case ('member') {
+                        <span class="member-badge">Member</span>
+                    }
+                    @case ('pending') {
+                        <button type="button" class="btn btn-sm btn-outline-dark" disabled>Pending</button>
+                    }
+                    @case ('rejected') {
+                        <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">Apply again</button>
+                    }
+                    @default {
+                        <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">Apply</button>
+                    }
                 }
-                <button type="button" class="btn btn-sm btn-outline-dark" [disabled]="hasApplied(group)" (click)="apply(group)">
-                    {{ hasApplied(group) ? 'Applied' : 'Apply' }}
-                </button>
             </div>
         }
     </div>

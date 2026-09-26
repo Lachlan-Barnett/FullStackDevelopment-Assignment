@@ -8,6 +8,18 @@ function nextId(items) {
   return items.length ? Math.max(...items.map((i) => i.id)) + 1 : 1;
 }
 
+// Whole years between a "YYYY-MM-DD" birthdate and today. No birthdate counts as age 0.
+function ageOf(birthdate) {
+  if (!birthdate) return 0;
+  const born = new Date(birthdate);
+  const today = new Date();
+  let age = today.getFullYear() - born.getFullYear();
+  const hadBirthday =
+    today.getMonth() > born.getMonth() ||
+    (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate());
+  return hadBirthday ? age : age - 1;
+}
+
 // Never send the password hash back to the client.
 function publicUser(user) {
   const { passwordHash, ...details } = user;
@@ -131,7 +143,8 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
-  app.post('/api/groups/:groupId/join', (req, res) => {
+  // Joining is a request the group admin approves. Users under the age limit are rejected straight away.
+  app.post('/api/groups/:groupId/join-requests', (req, res) => {
     const group = db.groups.find((g) => g.id === Number(req.params.groupId));
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
@@ -139,10 +152,62 @@ function initializeRoutes(app) {
     if (group.members.some((m) => m.userId === userId)) {
       return res.status(409).json({ message: 'Already a member of this group' });
     }
+    if (db.joinRequests.some((r) => r.groupId === group.id && r.userId === userId && r.status === 'pending')) {
+      return res.status(409).json({ message: 'You already have a pending request for this group' });
+    }
 
-    group.members.push({ userId, role: 'member' });
+    const underAge = ageOf(req.user.birthdate) < group.ageLimit;
+    const request = {
+      id: nextId(db.joinRequests),
+      groupId: group.id,
+      userId,
+      status: underAge ? 'rejected' : 'pending',
+      rejectionReason: underAge ? `You must be ${group.ageLimit} or older to join this group` : null,
+      reviewedBy: null,
+      createdAt: new Date().toISOString(),
+    };
+    db.joinRequests.push(request);
     saveDb(db);
-    res.json(group);
+    res.json(request);
+  });
+
+  app.get('/api/join-requests/mine', (req, res) => {
+    res.json(db.joinRequests.filter((r) => r.userId === req.user.id));
+  });
+
+  app.get('/api/groups/:groupId/join-requests', requireGroupAdmin, (req, res) => {
+    const pending = db.joinRequests.filter((r) => r.groupId === req.group.id && r.status === 'pending');
+    res.json(
+      pending.map((r) => ({ ...r, username: db.users.find((u) => u.id === r.userId)?.username ?? null })),
+    );
+  });
+
+  app.put('/api/groups/:groupId/join-requests/:requestId', requireGroupAdmin, (req, res) => {
+    const group = req.group;
+    const request = db.joinRequests.find(
+      (r) => r.id === Number(req.params.requestId) && r.groupId === group.id,
+    );
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
+
+    const applicant = db.users.find((u) => u.id === request.userId);
+    const approve = req.body.approve === true;
+
+    // Re-check the age in case the group's limit was raised after the request was made.
+    if (approve && (!applicant || ageOf(applicant.birthdate) < group.ageLimit)) {
+      return res.status(400).json({ message: 'That user no longer meets the group age limit' });
+    }
+
+    request.status = approve ? 'approved' : 'rejected';
+    request.reviewedBy = req.user.id;
+    if (approve) {
+      group.members.push({ userId: request.userId, role: 'member' });
+    } else {
+      request.rejectionReason = req.body.reason?.trim() || null;
+    }
+
+    saveDb(db);
+    res.json(request);
   });
 
   app.put('/api/groups/:groupId/members/:userId/role', requireGroupAdmin, (req, res) => {

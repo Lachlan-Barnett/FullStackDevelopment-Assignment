@@ -11,10 +11,19 @@ interface Group {
   members: { userId: number; role: string }[];
 }
 
+interface JoinRequest {
+  id: number;
+  groupId: number;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason: string | null;
+}
+
 interface CurrentUser {
   id: number;
   role: string;
 }
+
+type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
 
 @Component({
   selector: 'app-groups',
@@ -26,6 +35,7 @@ export class Groups {
   private readonly http = inject(HttpClient);
 
   protected readonly groups = signal<Group[]>([]);
+  protected readonly myRequests = signal<JoinRequest[]>([]);
   protected readonly currentUserId = signal<number | null>(null);
   protected readonly errorMessage = signal('');
 
@@ -36,6 +46,7 @@ export class Groups {
       this.currentUserId.set(currentUser.id);
     }
     this.loadGroups();
+    this.loadMyRequests();
   }
 
   private loadGroups() {
@@ -45,23 +56,38 @@ export class Groups {
     });
   }
 
-  hasApplied(group: Group) {
-    const userId = this.currentUserId();
-    return userId != null && group.members.some((m) => m.userId === userId);
+  private loadMyRequests() {
+    this.http.get<JoinRequest[]>('http://localhost:3000/api/join-requests/mine').subscribe({
+      next: (requests) => this.myRequests.set(requests),
+    });
   }
 
-  isAdmin(group: Group) {
+  // The most recent join request the user made for this group, if any.
+  latestRequest(group: Group) {
+    return this.myRequests()
+      .filter((r) => r.groupId === group.id)
+      .reduce<JoinRequest | null>((latest, r) => (!latest || r.id > latest.id ? r : latest), null);
+  }
+
+  status(group: Group): GroupStatus {
     const userId = this.currentUserId();
-    return userId != null && group.members.some((m) => m.userId === userId && m.role === 'admin');
+    const membership = group.members.find((m) => m.userId === userId);
+    if (membership) return membership.role === 'admin' ? 'admin' : 'member';
+
+    const request = this.latestRequest(group);
+    if (request?.status === 'pending') return 'pending';
+    if (request?.status === 'rejected') return 'rejected';
+    return 'none';
   }
 
   apply(group: Group) {
-    const userId = this.currentUserId();
-    if (userId == null || this.hasApplied(group)) return;
+    const status = this.status(group);
+    if (status !== 'none' && status !== 'rejected') return;
 
-    this.http.post<Group>(`http://localhost:3000/api/groups/${group.id}/join`, {}).subscribe({
-      next: () => this.loadGroups(),
-      error: () => this.errorMessage.set('Unable to join that group.'),
+    this.errorMessage.set('');
+    this.http.post<JoinRequest>(`http://localhost:3000/api/groups/${group.id}/join-requests`, {}).subscribe({
+      next: () => this.loadMyRequests(),
+      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to request to join that group.'),
     });
   }
 }

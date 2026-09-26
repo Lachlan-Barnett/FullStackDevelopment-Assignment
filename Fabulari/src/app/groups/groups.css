@@ -61,6 +61,20 @@
   font-weight: 700;
 }
 
+.member-badge {
+  background: #e2e3e5;
+  border: 1px solid #6c757d;
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.rejected-note {
+  font-size: 0.75rem;
+  color: #b00020;
+}
+
 .error-text {
   color: #b00020;
   text-align: center;
