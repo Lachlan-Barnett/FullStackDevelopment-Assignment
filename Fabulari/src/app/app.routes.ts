@@ -13,6 +13,7 @@ import { SuperAdminDashboard } from './super-admin-dashboard/super-admin-dashboa
 import { authGuard } from './guards/auth.guard';
 import { guestGuard } from './guards/guest.guard';
 import { superAdminGuard } from './guards/super-admin.guard';
+import { groupAdminGuard } from './guards/group-admin.guard';
 
 export const routes: Routes = [
     { path: '', component: Login, title: 'Login', canActivate: [guestGuard] },
@@ -24,6 +25,6 @@ export const routes: Routes = [
     { path: 'change-birthdate', component: ChangeBirthdate, title: 'Change Birthdate', canActivate: [authGuard] },
     { path: 'report', component: Report, title: 'Report', canActivate: [authGuard] },
     { path: 'groups', component: Groups, title: 'Groups', canActivate: [authGuard] },
-    { path: 'admin/group/:groupId', component: GroupAdminDashboard, title: 'Group Admin', canActivate: [authGuard] },
+    { path: 'admin/group/:groupId', component: GroupAdminDashboard, title: 'Group Admin', canActivate: [authGuard, groupAdminGuard] },
     { path: 'admin/super', component: SuperAdminDashboard, title: 'Super Admin', canActivate: [authGuard, superAdminGuard] },
 ];
