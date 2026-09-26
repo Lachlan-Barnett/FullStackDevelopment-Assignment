@@ -1,3 +1,5 @@
+import { ColourTheme } from './colour-theme';
+
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 // Fields shared by every kind of request a user can make.
@@ -21,7 +23,7 @@ export interface GroupRequest extends BaseRequest {
   name: string;
   description: string;
   ageLimit: number;
-  colourTheme: string;
+  colourTheme: ColourTheme;
 }
 
 export interface RoomRequest extends BaseRequest {

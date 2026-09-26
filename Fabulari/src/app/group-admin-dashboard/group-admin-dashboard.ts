@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, GroupMember, Room, RoomRequest, User } from '../models';
+import { COLOUR_THEMES, ColourTheme, Group, GroupMember, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -29,7 +29,8 @@ export class GroupAdminDashboard {
 
   protected editDescription = '';
   protected editAgeLimit = 0;
-  protected editColourTheme = '';
+  protected editColourTheme: ColourTheme = 'Blue';
+  protected readonly colourThemes = COLOUR_THEMES;
 
   protected readonly members = computed(() => {
     const group = this.group();

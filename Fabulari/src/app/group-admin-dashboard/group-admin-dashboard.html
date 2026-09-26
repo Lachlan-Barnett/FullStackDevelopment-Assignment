@@ -22,7 +22,11 @@
         </label>
         <label>
           Colour Theme
-          <input type="text" class="form-control" [(ngModel)]="editColourTheme" name="editColourTheme">
+          <select class="form-control" [(ngModel)]="editColourTheme" name="editColourTheme">
+            @for (theme of colourThemes; track theme) {
+              <option [ngValue]="theme">{{ theme }}</option>
+            }
+          </select>
         </label>
         <button type="submit" class="btn btn-dark">Save Changes</button>
       </form>

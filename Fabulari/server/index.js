@@ -4,6 +4,9 @@ const createAuth = require('./auth');
 
 const SALT_ROUNDS = 10;
 
+// Group themes follow the Fabulari logo colours.
+const COLOUR_THEMES = ['Blue', 'Yellow', 'Red'];
+
 function nextId(items) {
   return items.length ? Math.max(...items.map((i) => i.id)) + 1 : 1;
 }
@@ -119,6 +122,9 @@ function initializeRoutes(app) {
 
     const { name, description, ageLimit, colourTheme } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: 'A group name is required' });
+    if (colourTheme !== undefined && !COLOUR_THEMES.includes(colourTheme)) {
+      return res.status(400).json({ message: `Colour theme must be one of: ${COLOUR_THEMES.join(', ')}` });
+    }
 
     const nameTaken = (n) => n.toLowerCase() === name.trim().toLowerCase();
     if (db.groups.some((g) => nameTaken(g.name))) {
@@ -197,6 +203,9 @@ function initializeRoutes(app) {
     const group = req.group;
 
     const { description, ageLimit, colourTheme } = req.body;
+    if (colourTheme !== undefined && !COLOUR_THEMES.includes(colourTheme)) {
+      return res.status(400).json({ message: `Colour theme must be one of: ${COLOUR_THEMES.join(', ')}` });
+    }
     if (description !== undefined) group.description = description;
     if (ageLimit !== undefined) group.ageLimit = Number(ageLimit) || 0;
     if (colourTheme !== undefined) group.colourTheme = colourTheme;

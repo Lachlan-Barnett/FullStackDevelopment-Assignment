@@ -48,7 +48,7 @@
         <button type="button" class="admin-link" routerLink="/admin/super">Super Admin &gt;</button>
       }
 
-      <div class="messages-list" [style.background-color]="selectedGroup()?.colourTheme ?? null"></div>
+      <div class="messages-list" [style.background-color]="themeTint()"></div>
 
       <form class="message-input-row">
         <input type="text" class="form-control user-message" placeholder="Users Message">

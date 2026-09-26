@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, Room } from '../models';
+import { Group, Room, THEME_TINTS } from '../models';
 
 @Component({
   selector: 'app-chat',
@@ -39,6 +39,11 @@ export class Chat {
   });
 
   protected readonly isSuperAdmin = computed(() => this.currentUser()?.role === 'superadmin');
+
+  protected readonly themeTint = computed(() => {
+    const theme = this.selectedGroup()?.colourTheme;
+    return theme ? THEME_TINTS[theme] : null;
+  });
 
   ngOnInit() {
     this.loadGroups();

@@ -1,3 +1,5 @@
+import { ColourTheme } from './colour-theme';
+
 export interface GroupMember {
   userId: number;
   role: 'admin' | 'member';
@@ -8,6 +10,6 @@ export interface Group {
   name: string;
   description: string;
   ageLimit: number;
-  colourTheme: string;
+  colourTheme: ColourTheme;
   members: GroupMember[];
 }
