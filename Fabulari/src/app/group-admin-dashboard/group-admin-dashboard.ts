@@ -25,6 +25,14 @@ interface Room {
   description: string;
 }
 
+interface RoomRequest {
+  id: number;
+  requestedBy: number;
+  requesterName: string | null;
+  name: string;
+  description: string;
+}
+
 interface AppUser {
   id: number;
   username: string;
@@ -48,8 +56,8 @@ export class GroupAdminDashboard {
   protected readonly users = signal<AppUser[]>([]);
   protected readonly errorMessage = signal('');
 
-  protected newRoomName = '';
-  protected newRoomDescription = '';
+  protected readonly roomRequests = signal<RoomRequest[]>([]);
+  protected rejectReasons: Record<number, string> = {};
 
   protected editDescription = '';
   protected editAgeLimit = 0;
@@ -68,6 +76,7 @@ export class GroupAdminDashboard {
     const groupID = Number(this.route.snapshot.paramMap.get('groupId'));
     this.loadGroup(groupID);
     this.loadRooms(groupID);
+    this.loadRoomRequests(groupID);
     this.http.get<AppUser[]>('http://localhost:3000/api/users').subscribe({
       next: (users) => this.users.set(users),
     });
@@ -107,23 +116,37 @@ export class GroupAdminDashboard {
       });
   }
 
-  createRoom() {
-    const group = this.group();
-    if (!group || !this.newRoomName.trim()) return;
+  private loadRoomRequests(groupId: number) {
+    this.http.get<RoomRequest[]>(`http://localhost:3000/api/groups/${groupId}/room-requests`).subscribe({
+      next: (requests) => this.roomRequests.set(requests),
+    });
+  }
 
+  actionRoomRequest(request: RoomRequest, approve: boolean) {
+    const group = this.group();
+    if (!group) return;
+
+    const reason = this.rejectReasons[request.id]?.trim() ?? '';
+    if (!approve && !reason) {
+      this.errorMessage.set(`Enter a reason before rejecting "${request.name}".`);
+      return;
+    }
+
+    this.errorMessage.set('');
     this.http
-      .post<Room>(`http://localhost:3000/api/groups/${group.id}/rooms`, {
-        name: this.newRoomName,
-        description: this.newRoomDescription,
-      })
+      .put(`http://localhost:3000/api/groups/${group.id}/room-requests/${request.id}`, { approve, reason })
       .subscribe({
         next: () => {
-          this.newRoomName = '';
-          this.newRoomDescription = '';
-          this.loadRooms(group.id);
+          delete this.rejectReasons[request.id];
+          this.loadRoomRequests(group.id);
+          if (approve) this.loadRooms(group.id);
         },
-        error: () => this.errorMessage.set('Unable to create that channel.'),
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
       });
+  }
+
+  isOwnRequest(request: RoomRequest) {
+    return request.requestedBy === this.currentUserId();
   }
 
   deleteRoom(room: Room) {

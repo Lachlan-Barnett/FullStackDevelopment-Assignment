@@ -293,16 +293,84 @@ function initializeRoutes(app) {
     res.json(db.rooms.filter((r) => r.groupId === groupId));
   });
 
-  app.post('/api/groups/:groupId/rooms', requireGroupAdmin, (req, res) => {
+  // Members propose rooms; a group admin approves (creating the room) or rejects with a reason.
+  app.post('/api/groups/:groupId/room-requests', requireGroupMember, (req, res) => {
     const groupId = req.group.id;
-
     const { name, description } = req.body;
-    if (!name) return res.status(400).json({ message: 'Name is required' });
+    if (!name?.trim()) return res.status(400).json({ message: 'A room name is required' });
 
-    const room = { id: nextId(db.rooms), groupId, name, description: description || '' };
-    db.rooms.push(room);
+    const nameTaken = (n) => n.toLowerCase() === name.trim().toLowerCase();
+    if (db.rooms.some((r) => r.groupId === groupId && nameTaken(r.name))) {
+      return res.status(409).json({ message: 'This group already has a room with that name' });
+    }
+    if (db.roomRequests.some((r) => r.groupId === groupId && r.status === 'pending' && nameTaken(r.name))) {
+      return res.status(409).json({ message: 'A room with that name has already been requested' });
+    }
+
+    const request = {
+      id: nextId(db.roomRequests),
+      groupId,
+      requestedBy: req.user.id,
+      name: name.trim(),
+      description: description?.trim() || '',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: new Date().toISOString(),
+    };
+    db.roomRequests.push(request);
     saveDb(db);
-    res.json(room);
+    res.json(request);
+  });
+
+  app.get('/api/room-requests/mine', (req, res) => {
+    res.json(db.roomRequests.filter((r) => r.requestedBy === req.user.id));
+  });
+
+  app.get('/api/groups/:groupId/room-requests', requireGroupAdmin, (req, res) => {
+    const pending = db.roomRequests.filter((r) => r.groupId === req.group.id && r.status === 'pending');
+    res.json(
+      pending.map((r) => ({ ...r, requesterName: db.users.find((u) => u.id === r.requestedBy)?.username ?? null })),
+    );
+  });
+
+  app.put('/api/groups/:groupId/room-requests/:requestId', requireGroupAdmin, (req, res) => {
+    const groupId = req.group.id;
+    const request = db.roomRequests.find((r) => r.id === Number(req.params.requestId) && r.groupId === groupId);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
+    if (request.requestedBy === req.user.id) {
+      return res.status(403).json({ message: 'Another admin must review your own request' });
+    }
+
+    const approve = req.body.approve === true;
+
+    if (!approve) {
+      const reason = req.body.reason?.trim();
+      if (!reason) return res.status(400).json({ message: 'A reason is required to reject a room request' });
+      request.status = 'rejected';
+      request.rejectionReason = reason;
+      request.reviewedBy = req.user.id;
+      saveDb(db);
+      return res.json(request);
+    }
+
+    if (db.rooms.some((r) => r.groupId === groupId && r.name.toLowerCase() === request.name.toLowerCase())) {
+      return res.status(409).json({ message: 'This group already has a room with that name' });
+    }
+
+    const room = {
+      id: nextId(db.rooms),
+      groupId,
+      name: request.name,
+      description: request.description,
+      createdAt: new Date().toISOString(),
+    };
+    db.rooms.push(room);
+    request.status = 'approved';
+    request.reviewedBy = req.user.id;
+    saveDb(db);
+    res.json({ request, room });
   });
 
   app.delete('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, (req, res) => {

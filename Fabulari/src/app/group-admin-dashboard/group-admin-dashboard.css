@@ -82,11 +82,34 @@
   text-align: center;
 }
 
-.new-room-form {
+.request-card {
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
+}
+
+.request-header {
+  display: flex;
+  align-items: baseline;
   gap: 0.5rem;
-  margin-top: 1rem;
+}
+
+.request-meta {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.request-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.request-actions .form-control {
+  flex: 1;
 }
 
 .edit-group-form {
