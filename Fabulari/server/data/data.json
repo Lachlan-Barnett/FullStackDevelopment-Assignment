@@ -5,24 +5,24 @@
       "email": "admin@test.com",
       "username": "admin",
       "birthdate": "2000-01-01",
-      "password": "123",
-      "role": "superadmin"
+      "role": "superadmin",
+      "passwordHash": "$2b$10$9hJCtcbzrMuGmDwgn6zl2OupKICDL50xao49weOj0lMlxTd0RWag."
     },
     {
       "id": 2,
       "email": "user1@com.au",
       "username": "user1",
       "birthdate": "2000-01-01",
-      "password": "123",
-      "role": "user"
+      "role": "user",
+      "passwordHash": "$2b$10$j8GFS2gRy3G8Qrp1.9CA2ugU.10HkJ8vjM2Cr35Cj/pQdByfKCXea"
     },
     {
       "id": 3,
       "email": "user2@com.au",
       "username": "user2",
       "birthdate": "2000-01-01",
-      "password": "123",
-      "role": "user"
+      "role": "user",
+      "passwordHash": "$2b$10$53WdAs1AA2jzpj6mhCbAYONzIhr2ybySVn/hilBxXE276Mic.q60K"
     }
   ],
   "groups": [

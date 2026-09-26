@@ -1,30 +1,38 @@
+const bcrypt = require('bcryptjs');
 const { loadDb, saveDb } = require('./data');
+
+const SALT_ROUNDS = 10;
 
 function nextId(items) {
   return items.length ? Math.max(...items.map((i) => i.id)) + 1 : 1;
 }
 
+// Never send the password hash back to the client.
+function publicUser(user) {
+  const { passwordHash, ...details } = user;
+  return details;
+}
+
 function initializeRoutes(app) {
   const db = loadDb();
 
-  app.post('/api/auth', (req, res) => {
+  app.post('/api/auth', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ valid: false, message: 'Email and password are required' });
     }
 
-    const user = db.users.find((u) => u.email === email && u.password === password);
+    const user = db.users.find((u) => u.email === email);
 
-    if (!user) {
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.json({ valid: false });
     }
 
-    const { password: _pw, ...userDetails } = user;
-    res.json({ valid: true, ...userDetails });
+    res.json({ valid: true, ...publicUser(user) });
   });
 
-  app.post('/api/signup', (req, res) => {
+  app.post('/api/signup', async (req, res) => {
     const { email, username, birthdate, password } = req.body;
 
     if (!email || !username || !password) {
@@ -35,16 +43,16 @@ function initializeRoutes(app) {
       return res.status(409).json({ valid: false, message: 'Email already registered' });
     }
 
-    const user = { id: nextId(db.users), email, username, birthdate, password, role: 'user' };
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const user = { id: nextId(db.users), email, username, birthdate, passwordHash, role: 'user' };
     db.users.push(user);
     saveDb(db);
 
-    const { password: _pw, ...userDetails } = user;
-    res.json({ valid: true, ...userDetails });
+    res.json({ valid: true, ...publicUser(user) });
   });
 
   app.get('/api/users', (req, res) => {
-    res.json(db.users.map(({ password, ...u }) => u));
+    res.json(db.users.map(publicUser));
   });
 
   app.put('/api/users/:userId', (req, res) => {
@@ -56,11 +64,10 @@ function initializeRoutes(app) {
     if (birthdate !== undefined) user.birthdate = birthdate;
 
     saveDb(db);
-    const { password: _pw, ...userDetails } = user;
-    res.json(userDetails);
+    res.json(publicUser(user));
   });
 
-  app.put('/api/users/:userId/password', (req, res) => {
+  app.put('/api/users/:userId/password', async (req, res) => {
     const user = db.users.find((u) => u.id === Number(req.params.userId));
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -68,11 +75,11 @@ function initializeRoutes(app) {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Current and new password are required' });
     }
-    if (user.password !== currentPassword) {
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
       return res.status(403).json({ message: 'Current password is incorrect' });
     }
 
-    user.password = newPassword;
+    user.passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     saveDb(db);
     res.json({ updated: true });
   });
