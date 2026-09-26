@@ -3,12 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-
-interface Group {
-  id: number;
-  name: string;
-  members: { userId: number; role: string }[];
-}
+import { API_URL } from '../api.config';
+import { Group } from '../models';
 
 @Component({
   selector: 'app-report',
@@ -30,7 +26,7 @@ export class Report {
 
   ngOnInit() {
     const userId = this.auth.currentUser()?.id;
-    this.http.get<Group[]>('http://localhost:3000/api/groups').subscribe({
+    this.http.get<Group[]>(`${API_URL}/groups`).subscribe({
       next: (groups) => this.myGroups.set(groups.filter((g) => g.members.some((m) => m.userId === userId))),
       error: () => this.errorMessage.set('Unable to reach the server.'),
     });
@@ -46,7 +42,7 @@ export class Report {
     }
 
     this.http
-      .post('http://localhost:3000/api/reports', {
+      .post(`${API_URL}/reports`, {
         groupId: this.groupId,
         username: this.username,
         reason: this.reason,

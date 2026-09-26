@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService, CurrentUser } from '../services/auth.service';
+import { API_URL } from '../api.config';
 
 @Component({
   selector: 'app-change-birthdate',
@@ -32,7 +33,7 @@ export class ChangeBirthdate {
       return;
     }
 
-    this.http.put<CurrentUser>(`http://localhost:3000/api/users/${currentUser.id}`, {
+    this.http.put<CurrentUser>(`${API_URL}/users/${currentUser.id}`, {
       birthdate: this.newBirthdate,
     }).subscribe({
       next: (updatedUser) => {

@@ -1,14 +1,11 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import { API_URL } from '../api.config';
+import { User } from '../models';
 
-export interface CurrentUser {
-    id: number;
-    email: string;
-    username: string;
-    birthdate: string;
-    role: string;
-}
+// The logged-in user is just a User; the alias makes intent clearer where it's used.
+export type CurrentUser = User;
 
 interface AuthResponse extends Partial<CurrentUser> {
     valid: boolean;
@@ -31,13 +28,13 @@ export class AuthService {
 
     login(email: string, password: string): Observable<AuthResponse> {
         return this.http
-            .post<AuthResponse>('http://localhost:3000/api/auth', { email, password })
+            .post<AuthResponse>(`${API_URL}/auth`, { email, password })
             .pipe(tap((response) => this.handleAuthResponse(response)));
     }
 
     signup(email: string, username: string, birthdate: string, password: string): Observable<AuthResponse> {
         return this.http
-            .post<AuthResponse>('http://localhost:3000/api/signup', { email, username, birthdate, password })
+            .post<AuthResponse>(`${API_URL}/signup`, { email, username, birthdate, password })
             .pipe(tap((response) => this.handleAuthResponse(response)));
     }
 

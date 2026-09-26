@@ -2,22 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: { userId: number; role: string }[];
-}
-
-interface JoinRequest {
-  id: number;
-  groupId: number;
-  status: 'pending' | 'approved' | 'rejected';
-  rejectionReason: string | null;
-}
+import { API_URL } from '../api.config';
+import { Group, JoinRequest } from '../models';
 
 type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
 
@@ -42,14 +28,14 @@ export class Groups {
   }
 
   private loadGroups() {
-    this.http.get<Group[]>('http://localhost:3000/api/groups').subscribe({
+    this.http.get<Group[]>(`${API_URL}/groups`).subscribe({
       next: (groups) => this.groups.set(groups),
       error: () => this.errorMessage.set('Unable to reach the server.'),
     });
   }
 
   private loadMyRequests() {
-    this.http.get<JoinRequest[]>('http://localhost:3000/api/join-requests/mine').subscribe({
+    this.http.get<JoinRequest[]>(`${API_URL}/join-requests/mine`).subscribe({
       next: (requests) => this.myRequests.set(requests),
     });
   }
@@ -77,7 +63,7 @@ export class Groups {
     if (status !== 'none' && status !== 'rejected') return;
 
     this.errorMessage.set('');
-    this.http.post<JoinRequest>(`http://localhost:3000/api/groups/${group.id}/join-requests`, {}).subscribe({
+    this.http.post<JoinRequest>(`${API_URL}/groups/${group.id}/join-requests`, {}).subscribe({
       next: () => this.loadMyRequests(),
       error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to request to join that group.'),
     });

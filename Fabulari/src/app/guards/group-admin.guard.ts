@@ -3,10 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { CanActivateFn, Router } from '@angular/router';
 import { catchError, map, of } from 'rxjs';
 import { AuthService } from '../services/auth.service';
-
-interface Group {
-    members: { userId: number; role: string }[];
-}
+import { API_URL } from '../api.config';
+import { Group } from '../models';
 
 // Only lets the user into /admin/group/:groupId if they are an admin of that group.
 // Admin status can change at any time, so it's checked against the server rather than cached.
@@ -21,7 +19,7 @@ export const groupAdminGuard: CanActivateFn = (route) => {
 
     if (userId == null || !groupId) return backToChat;
 
-    return http.get<Group>(`http://localhost:3000/api/groups/${groupId}`).pipe(
+    return http.get<Group>(`${API_URL}/groups/${groupId}`).pipe(
         map((group) => (group.members.some((m) => m.userId === userId && m.role === 'admin') ? true : backToChat)),
         catchError(() => of(backToChat)),
     );

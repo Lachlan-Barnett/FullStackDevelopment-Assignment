@@ -2,22 +2,8 @@ import { Component, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: { userId: number; role: string }[];
-}
-
-interface Room {
-  id: number;
-  groupId: number;
-  name: string;
-  description: string;
-}
+import { API_URL } from '../api.config';
+import { Group, Room } from '../models';
 
 @Component({
   selector: 'app-chat',
@@ -62,7 +48,7 @@ export class Chat {
     const user = this.currentUser();
     if (!user) return;
 
-    this.http.get<Group[]>('http://localhost:3000/api/groups').subscribe({
+    this.http.get<Group[]>(`${API_URL}/groups`).subscribe({
       next: (groups) => {
         const mine = groups.filter((g) => g.members.some((m) => m.userId === user.id));
         this.myGroups.set(mine);
@@ -74,7 +60,7 @@ export class Chat {
   }
 
   private loadRooms(groupId: number) {
-    this.http.get<Room[]>(`http://localhost:3000/api/groups/${groupId}/rooms`).subscribe({
+    this.http.get<Room[]>(`${API_URL}/groups/${groupId}/rooms`).subscribe({
       next: (rooms) => {
         this.rooms.set(rooms);
         this.selectedRoomId.set(rooms.length ? rooms[0].id : null);

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { API_URL } from '../api.config';
 
 @Component({
   selector: 'app-change-password',
@@ -54,7 +55,7 @@ export class ChangePassword {
       return;
     }
 
-    this.http.put<any>(`http://localhost:3000/api/users/${currentUser.id}/password`, {
+    this.http.put<any>(`${API_URL}/users/${currentUser.id}/password`, {
       currentPassword: this.currentPassword,
       newPassword: this.newPassword,
     }).subscribe({

@@ -3,41 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-
-interface Member {
-  userId: number;
-  role: string;
-}
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: Member[];
-}
-
-interface Room {
-  id: number;
-  groupId: number;
-  name: string;
-  description: string;
-}
-
-interface RoomRequest {
-  id: number;
-  requestedBy: number;
-  requesterName: string | null;
-  name: string;
-  description: string;
-}
-
-interface AppUser {
-  id: number;
-  username: string;
-  email: string;
-}
+import { API_URL } from '../api.config';
+import { Group, GroupMember, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -54,7 +21,7 @@ export class GroupAdminDashboard {
   protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly group = signal<Group | null>(null);
   protected readonly rooms = signal<Room[]>([]);
-  protected readonly users = signal<AppUser[]>([]);
+  protected readonly users = signal<User[]>([]);
   protected readonly errorMessage = signal('');
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
@@ -78,13 +45,13 @@ export class GroupAdminDashboard {
     this.loadGroup(groupID);
     this.loadRooms(groupID);
     this.loadRoomRequests(groupID);
-    this.http.get<AppUser[]>('http://localhost:3000/api/users').subscribe({
+    this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
   }
 
   private loadGroup(groupId: number) {
-    this.http.get<Group>(`http://localhost:3000/api/groups/${groupId}`).subscribe({
+    this.http.get<Group>(`${API_URL}/groups/${groupId}`).subscribe({
       next: (group) => {
         this.group.set(group);
         this.editDescription = group.description;
@@ -96,7 +63,7 @@ export class GroupAdminDashboard {
   }
 
   private loadRooms(groupId: number) {
-    this.http.get<Room[]>(`http://localhost:3000/api/groups/${groupId}/rooms`).subscribe({
+    this.http.get<Room[]>(`${API_URL}/groups/${groupId}/rooms`).subscribe({
       next: (rooms) => this.rooms.set(rooms),
     });
   }
@@ -106,7 +73,7 @@ export class GroupAdminDashboard {
     if (!group) return;
 
     this.http
-      .put<Group>(`http://localhost:3000/api/groups/${group.id}`, {
+      .put<Group>(`${API_URL}/groups/${group.id}`, {
         description: this.editDescription,
         ageLimit: this.editAgeLimit,
         colourTheme: this.editColourTheme,
@@ -118,7 +85,7 @@ export class GroupAdminDashboard {
   }
 
   private loadRoomRequests(groupId: number) {
-    this.http.get<RoomRequest[]>(`http://localhost:3000/api/groups/${groupId}/room-requests`).subscribe({
+    this.http.get<RoomRequest[]>(`${API_URL}/groups/${groupId}/room-requests`).subscribe({
       next: (requests) => this.roomRequests.set(requests),
     });
   }
@@ -135,7 +102,7 @@ export class GroupAdminDashboard {
 
     this.errorMessage.set('');
     this.http
-      .put(`http://localhost:3000/api/groups/${group.id}/room-requests/${request.id}`, { approve, reason })
+      .put(`${API_URL}/groups/${group.id}/room-requests/${request.id}`, { approve, reason })
       .subscribe({
         next: () => {
           delete this.rejectReasons[request.id];
@@ -154,23 +121,23 @@ export class GroupAdminDashboard {
     const group = this.group();
     if (!group) return;
 
-    this.http.delete(`http://localhost:3000/api/groups/${group.id}/rooms/${room.id}`).subscribe({
+    this.http.delete(`${API_URL}/groups/${group.id}/rooms/${room.id}`).subscribe({
       next: () => this.loadRooms(group.id),
       error: () => this.errorMessage.set('Unable to delete that channel.'),
     });
   }
 
-  isSelf(member: Member) {
+  isSelf(member: GroupMember) {
     return member.userId === this.currentUserId();
   }
 
   // The group must always keep one admin, so the last admin can't be demoted.
-  isLastAdmin(member: Member) {
+  isLastAdmin(member: GroupMember) {
     const admins = this.group()?.members.filter((m) => m.role === 'admin') ?? [];
     return member.role === 'admin' && admins.length === 1;
   }
 
-  toggleRole(member: Member) {
+  toggleRole(member: GroupMember) {
     const group = this.group();
     if (!group || this.isLastAdmin(member)) return;
 
@@ -182,7 +149,7 @@ export class GroupAdminDashboard {
 
     this.errorMessage.set('');
     this.http
-      .put<Group>(`http://localhost:3000/api/groups/${group.id}/members/${member.userId}/role`, {
+      .put<Group>(`${API_URL}/groups/${group.id}/members/${member.userId}/role`, {
         role: newRole,
       })
       .subscribe({

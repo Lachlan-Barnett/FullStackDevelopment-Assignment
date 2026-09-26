@@ -2,39 +2,8 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
-
-interface Group {
-  id: number;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  members: { userId: number; role: string }[];
-}
-
-interface AppUser {
-  id: number;
-  username: string;
-  email: string;
-  role: string;
-}
-
-interface GroupRequest {
-  id: number;
-  requestedBy: number;
-  requesterName: string | null;
-  name: string;
-  description: string;
-  ageLimit: number;
-  colourTheme: string;
-  createdAt: string;
-}
-
-interface AuditLogEntry {
-  type: string;
-  details: string;
-  timestamp: string;
-}
+import { API_URL } from '../api.config';
+import { AuditLogEntry, Group, GroupRequest, User } from '../models';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -46,7 +15,7 @@ export class SuperAdminDashboard {
   private readonly http = inject(HttpClient);
 
   protected readonly groups = signal<Group[]>([]);
-  protected readonly users = signal<AppUser[]>([]);
+  protected readonly users = signal<User[]>([]);
   protected readonly errorMessage = signal('');
 
   protected readonly auditLog = signal<AuditLogEntry[]>([]);
@@ -61,19 +30,19 @@ export class SuperAdminDashboard {
   }
 
   private loadGroupRequests() {
-    this.http.get<GroupRequest[]>('http://localhost:3000/api/admin/group-requests').subscribe({
+    this.http.get<GroupRequest[]>(`${API_URL}/admin/group-requests`).subscribe({
       next: (requests) => this.groupRequests.set(requests),
     });
   }
 
   private loadGroups() {
-    this.http.get<Group[]>('http://localhost:3000/api/groups').subscribe({
+    this.http.get<Group[]>(`${API_URL}/groups`).subscribe({
       next: (groups) => this.groups.set(groups),
     });
   }
 
   private loadUsers() {
-    this.http.get<AppUser[]>('http://localhost:3000/api/users').subscribe({
+    this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
   }
@@ -89,7 +58,7 @@ export class SuperAdminDashboard {
   actionGroupRequest(request: GroupRequest, approve: boolean) {
     this.errorMessage.set('');
     this.http
-      .put(`http://localhost:3000/api/admin/group-requests/${request.id}`, {
+      .put(`${API_URL}/admin/group-requests/${request.id}`, {
         approve,
         reason: this.rejectReasons[request.id] ?? '',
       })
