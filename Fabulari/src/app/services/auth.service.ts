@@ -47,6 +47,15 @@ export class AuthService {
         localStorage.removeItem(TOKEN_KEY);
     }
 
+    // Merges profile changes (e.g. a new username) into the logged-in user so every page sees them.
+    updateCurrentUser(changes: Partial<CurrentUser>) {
+        const user = this._currentUser();
+        if (!user) return;
+        const updated = { ...user, ...changes };
+        this._currentUser.set(updated);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    }
+
     getToken(): string | null {
         return localStorage.getItem(TOKEN_KEY);
     }

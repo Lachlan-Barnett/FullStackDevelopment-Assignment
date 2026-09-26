@@ -1,12 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-
-interface currentUser {
-  email: string;
-  username: string;
-  birthdate: string;
-  role: string;
-}
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-settings',
@@ -17,14 +11,7 @@ interface currentUser {
 export class Settings {
   protected readonly showPassword = signal(false);
   protected readonly darkMode = signal(localStorage.getItem('darkMode') === 'true');
-  protected readonly currentUser = signal<currentUser | null>(null);
-
-  ngOnInit() {
-    const stored = localStorage.getItem('currentUser');
-    if (stored) {
-      this.currentUser.set(JSON.parse(stored));
-    }
-  }
+  protected readonly currentUser = inject(AuthService).currentUser;
 
   toggleTheme() {
   this.darkMode.update((v) => !v);

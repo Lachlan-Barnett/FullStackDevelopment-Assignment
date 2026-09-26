@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 
 interface Group {
   id: number;
@@ -18,11 +19,6 @@ interface JoinRequest {
   rejectionReason: string | null;
 }
 
-interface CurrentUser {
-  id: number;
-  role: string;
-}
-
 type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
 
 @Component({
@@ -33,18 +29,14 @@ type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
 })
 export class Groups {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
 
   protected readonly groups = signal<Group[]>([]);
   protected readonly myRequests = signal<JoinRequest[]>([]);
-  protected readonly currentUserId = signal<number | null>(null);
+  protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly errorMessage = signal('');
 
   ngOnInit() {
-    const stored = localStorage.getItem('currentUser');
-    if (stored) {
-      const currentUser: CurrentUser = JSON.parse(stored);
-      this.currentUserId.set(currentUser.id);
-    }
     this.loadGroups();
     this.loadMyRequests();
   }

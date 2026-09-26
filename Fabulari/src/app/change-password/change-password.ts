@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-change-password',
@@ -12,6 +13,7 @@ import { Router, RouterLink } from '@angular/router';
 export class ChangePassword {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   protected readonly showPassword0 = signal(false);
   protected readonly showPassword1 = signal(false);
@@ -46,12 +48,11 @@ export class ChangePassword {
       return;
     }
 
-    const stored = localStorage.getItem('currentUser');
-    if (!stored) {
+    const currentUser = this.auth.currentUser();
+    if (!currentUser) {
       this.errorMessage.set('You must be logged in.');
       return;
     }
-    const currentUser = JSON.parse(stored);
 
     this.http.put<any>(`http://localhost:3000/api/users/${currentUser.id}/password`, {
       currentPassword: this.currentPassword,
