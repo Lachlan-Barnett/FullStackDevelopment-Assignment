@@ -58,6 +58,7 @@ export class ChangePassword {
     this.http.put<any>(`${API_URL}/users/${currentUser.id}/password`, {
       currentPassword: this.currentPassword,
       newPassword: this.newPassword,
+      confirmPassword: this.confirmPassword,
     }).subscribe({
       next: () => {
         this.router.navigateByUrl('/settings');

@@ -90,9 +90,12 @@ function initializeRoutes(app) {
   app.put('/api/users/:userId/password', requireSelf, async (req, res) => {
     const user = req.user;
 
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Current and new password are required' });
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'Current password and the new password twice are required' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'New passwords do not match' });
     }
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
       return res.status(403).json({ message: 'Current password is incorrect' });
