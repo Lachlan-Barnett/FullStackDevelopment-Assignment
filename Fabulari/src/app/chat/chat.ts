@@ -3,7 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, Room, THEME_TINTS } from '../models';
+import { Group, GroupMemberDetails, Room, THEME_TINTS } from '../models';
+
+type InfoTab = 'info' | 'age' | 'colour' | 'members';
 
 @Component({
   selector: 'app-chat',
@@ -20,12 +22,13 @@ export class Chat {
   protected readonly currentUser = this.auth.currentUser;
   protected readonly myGroups = signal<Group[]>([]);
   protected readonly rooms = signal<Room[]>([]);
+  protected readonly members = signal<GroupMemberDetails[]>([]);
 
   protected readonly selectedGroupId = signal<number | null>(null);
   protected readonly selectedRoomId = signal<number | null>(null);
   protected readonly showDescription = signal(false);
   protected readonly showGroups = signal(true);
-  protected readonly infoTab = signal<'info' | 'age' | 'colour'>('info');
+  protected readonly infoTab = signal<InfoTab>('info');
 
   protected readonly selectedGroup = computed(() =>
     this.myGroups().find((g) => g.id === this.selectedGroupId()) ?? null,
@@ -73,16 +76,32 @@ export class Chat {
     });
   }
 
+  private loadMembers(groupId: number) {
+    this.http.get<GroupMemberDetails[]>(`${API_URL}/groups/${groupId}/members`).subscribe({
+      // Admins first, then alphabetical, so it's easy to see who runs the group.
+      next: (members) =>
+        this.members.set(
+          [...members].sort(
+            (a, b) =>
+              Number(b.role === 'admin') - Number(a.role === 'admin') ||
+              (a.username ?? '').localeCompare(b.username ?? ''),
+          ),
+        ),
+    });
+  }
+
   selectGroup(id: number) {
     this.selectedGroupId.set(id);
+    this.members.set([]);
     this.loadRooms(id);
+    this.loadMembers(id);
   }
 
   selectRoom(id: number) {
     this.selectedRoomId.set(id);
   }
 
-  setInfoTab(tab: 'info' | 'age' | 'colour') {
+  setInfoTab(tab: InfoTab) {
     this.infoTab.set(tab);
   }
 

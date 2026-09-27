@@ -217,6 +217,17 @@ function initializeRoutes(app) {
     res.json(group);
   });
 
+  // Member list for people inside the group. Profiles are private, so only username and role are shared.
+  app.get('/api/groups/:groupId/members', requireGroupMember, (req, res) => {
+    res.json(
+      req.group.members.map((m) => ({
+        userId: m.userId,
+        role: m.role,
+        username: db.users.find((u) => u.id === m.userId)?.username ?? null,
+      })),
+    );
+  });
+
   // Joining is a request the group admin approves. Users under the age limit are rejected straight away.
   app.post('/api/groups/:groupId/join-requests', (req, res) => {
     const group = db.groups.find((g) => g.id === Number(req.params.groupId));

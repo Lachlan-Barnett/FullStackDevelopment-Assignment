@@ -61,8 +61,22 @@
         <button type="button" class="list-btn" [class.selected]="infoTab() === 'info'" (click)="setInfoTab('info')">Group Info</button>
         <button type="button" class="list-btn" [class.selected]="infoTab() === 'age'" (click)="setInfoTab('age')">Age Limit</button>
         <button type="button" class="list-btn" [class.selected]="infoTab() === 'colour'" (click)="setInfoTab('colour')">Colour Theme</button>
+        <button type="button" class="list-btn" [class.selected]="infoTab() === 'members'" (click)="setInfoTab('members')">Members</button>
 
-        @if (infoTab() === 'info') {
+        @if (infoTab() === 'members') {
+          <ul class="info-box member-list" aria-label="Group members">
+            @for (member of members(); track member.userId) {
+              <li class="member-item">
+                <span>{{ member.username ?? ('User #' + member.userId) }}</span>
+                @if (member.role === 'admin') {
+                  <span class="admin-badge">Admin</span>
+                }
+              </li>
+            } @empty {
+              <li class="empty-note">No members to show.</li>
+            }
+          </ul>
+        } @else if (infoTab() === 'info') {
           <div class="info-box">{{ selectedGroup()?.description ?? 'No description' }}</div>
         } @else if (infoTab() === 'age') {
           <div class="info-box">Age Limit: {{ selectedGroup()?.ageLimit ?? '-' }}+</div>
