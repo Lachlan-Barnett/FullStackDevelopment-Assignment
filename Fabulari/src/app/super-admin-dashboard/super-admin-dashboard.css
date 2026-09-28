@@ -105,3 +105,8 @@
   font-size: 0.75rem;
   color: #666;
 }
+
+.title-actions {
+  display: flex;
+  gap: 0.5rem;
+}

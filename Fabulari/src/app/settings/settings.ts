@@ -21,6 +21,7 @@ export class Settings {
   protected readonly showPassword = signal(false);
   protected readonly darkMode = signal(localStorage.getItem('darkMode') === 'true');
   protected readonly currentUser = this.auth.currentUser;
+  protected readonly homeUrl = this.auth.homeUrl;
   protected readonly photoError = signal('');
   protected readonly photoBusy = signal(false);
 

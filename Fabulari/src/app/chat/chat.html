@@ -44,9 +44,6 @@
       @if (isGroupAdmin()) {
         <button type="button" class="admin-link" [routerLink]="['/admin/group', selectedGroup()?.id]">Manage Group &gt;</button>
       }
-      @if (isSuperAdmin()) {
-        <button type="button" class="admin-link" routerLink="/admin/super">Super Admin &gt;</button>
-      }
 
       @if (selectedRoom(); as room) {
         <div class="presence-bar">

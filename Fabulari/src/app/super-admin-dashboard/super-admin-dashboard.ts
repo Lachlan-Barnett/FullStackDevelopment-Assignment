@@ -1,8 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { API_URL } from '../api.config';
+import { AuthService } from '../services/auth.service';
 import { AuditLogEntry, Group, GroupRequest, User } from '../models';
 
 @Component({
@@ -13,6 +14,8 @@ import { AuditLogEntry, Group, GroupRequest, User } from '../models';
 })
 export class SuperAdminDashboard {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly groups = signal<Group[]>([]);
   protected readonly users = signal<User[]>([]);
@@ -27,6 +30,11 @@ export class SuperAdminDashboard {
     this.loadGroups();
     this.loadUsers();
     this.loadGroupRequests();
+  }
+
+  logout() {
+    this.auth.logout();
+    this.router.navigateByUrl('/');
   }
 
   private loadGroupRequests() {

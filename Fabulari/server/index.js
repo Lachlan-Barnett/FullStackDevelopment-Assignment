@@ -253,6 +253,11 @@ function initializeRoutes(app, db) {
 
   // Joining is a request the group admin approves. Users under the age limit are rejected straight away.
   app.post('/api/groups/:groupId/join-requests', async (req, res) => {
+    // The super admin runs the system but doesn't take part in groups or chat.
+    if (req.user.role === 'superadmin') {
+      return res.status(403).json({ message: 'The super admin cannot join groups' });
+    }
+
     const group = await groups.findOne({ id: Number(req.params.groupId) }, NO_ID);
     if (!group) return res.status(404).json({ message: 'Group not found' });
 

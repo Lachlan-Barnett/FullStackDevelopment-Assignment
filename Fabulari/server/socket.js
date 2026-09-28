@@ -7,6 +7,9 @@ const MAX_TEXT_LENGTH = 2000;
 // Only the most recent messages in each room are kept, per the client's requirements.
 const HISTORY_SIZE = 5;
 
+// The super admin runs the system but, per the client, never takes part in chat.
+const SUPER_ADMIN_NO_CHAT = 'The super admin cannot take part in chat';
+
 // Socket.IO room name for a chat room.
 const channel = (roomId) => `room:${roomId}`;
 
@@ -129,6 +132,7 @@ function initializeSockets(io, db) {
 
   io.on('connection', (socket) => {
     const { user } = socket.data;
+    const isSuperAdmin = user.role === 'superadmin';
 
     // Every handler replies through `ack` with { ok: true, ... } or { ok: false, message }.
     const handle = (event, handler) => {
@@ -143,6 +147,7 @@ function initializeSockets(io, db) {
     };
 
     handle('room:join', async ({ roomId }) => {
+      if (isSuperAdmin) return { ok: false, message: SUPER_ADMIN_NO_CHAT };
       const { room, error } = await roomForMember(roomId, user.id);
       if (error) return { ok: false, message: error };
 
@@ -163,6 +168,7 @@ function initializeSockets(io, db) {
     });
 
     handle('message:send', async ({ roomId, type, content }) => {
+      if (isSuperAdmin) return { ok: false, message: SUPER_ADMIN_NO_CHAT };
       roomId = Number(roomId);
       if (!socket.data.rooms.has(roomId)) return { ok: false, message: 'Join the room before sending messages' };
 

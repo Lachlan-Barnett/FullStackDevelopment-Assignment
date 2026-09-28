@@ -27,7 +27,7 @@ export class Login {
       next: (response) => {
         if (response.valid) {
           this.errorMessage.set('');
-          this.router.navigateByUrl('/chat');
+          this.router.navigateByUrl(this.auth.homeUrl());
         } else {
           this.errorMessage.set('Invalid email or password');
         }

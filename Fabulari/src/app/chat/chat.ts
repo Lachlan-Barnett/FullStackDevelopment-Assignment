@@ -82,8 +82,6 @@ export class Chat {
     () => new Set(this.selectedGroup()?.members.filter((m) => m.role === 'admin').map((m) => m.userId) ?? []),
   );
 
-  protected readonly isSuperAdmin = computed(() => this.currentUser()?.role === 'superadmin');
-
   protected readonly themeTint = computed(() => {
     const theme = this.selectedGroup()?.colourTheme;
     return theme ? THEME_TINTS[theme] : null;

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { Settings } from './settings';
 import { AuthService, CurrentUser } from '../services/auth.service';
@@ -40,13 +40,19 @@ describe('Settings', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AuthService, useValue: { currentUser, updateCurrentUser } },
+        { provide: AuthService, useValue: { currentUser, updateCurrentUser, homeUrl: signal('/chat') } },
       ],
     }).compileComponents();
 
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(Settings);
     await settle();
+  });
+
+  it("the back arrow goes to the user's home page", () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    el().querySelector<HTMLButtonElement>('.back-btn')!.click();
+    expect(String(navigate.mock.calls[0][0])).toBe('/chat');
   });
 
   it('shows the profile details', () => {

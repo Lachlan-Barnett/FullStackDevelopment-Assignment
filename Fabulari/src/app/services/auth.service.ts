@@ -26,6 +26,9 @@ export class AuthService {
     readonly isLoggedIn = computed(() => this._currentUser() !== null);
     readonly isSuperAdmin = computed(() => this._currentUser()?.role === 'superadmin');
 
+    // Where a user lands after logging in. The super admin doesn't chat, so they go to their dashboard.
+    readonly homeUrl = computed(() => (this.isSuperAdmin() ? '/admin/super' : '/chat'));
+
     login(email: string, password: string): Observable<AuthResponse> {
         return this.http
             .post<AuthResponse>(`${API_URL}/auth`, { email, password })

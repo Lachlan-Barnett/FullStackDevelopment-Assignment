@@ -1,6 +1,9 @@
 <div class="page-title-bar">
   <span>Super Admin</span>
-  <button type="button" class="back-btn" routerLink="/chat">&lt;</button>
+  <div class="title-actions">
+    <button type="button" class="back-btn" routerLink="/settings">Settings</button>
+    <button type="button" class="back-btn" (click)="logout()">Logout</button>
+  </div>
 </div>
 
 @if (errorMessage()) {

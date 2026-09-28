@@ -7,7 +7,7 @@ export const guestGuard: CanActivateFn = () => {
     const router = inject(Router);
 
     if (auth.isLoggedIn()) {
-        router.navigateByUrl('/chat');
+        router.navigateByUrl(auth.homeUrl());
         return false;
     }
 
