@@ -387,8 +387,10 @@ function initializeRoutes(app, db) {
   });
 
   app.delete('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, async (req, res) => {
-    const result = await rooms.deleteOne({ id: Number(req.params.roomId), groupId: req.group.id });
+    const roomId = Number(req.params.roomId);
+    const result = await rooms.deleteOne({ id: roomId, groupId: req.group.id });
     if (!result.deletedCount) return res.status(404).json({ message: 'Room not found' });
+    await db.collection('messages').deleteMany({ roomId });
     res.json({ deleted: true });
   });
 

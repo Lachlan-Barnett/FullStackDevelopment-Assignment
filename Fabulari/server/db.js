@@ -22,6 +22,8 @@ async function createIndexes(db) {
   await db.collection('groups').createIndex({ id: 1 }, { unique: true });
   await db.collection('rooms').createIndex({ id: 1 }, { unique: true });
   await db.collection('rooms').createIndex({ groupId: 1 });
+  await db.collection('messages').createIndex({ id: 1 }, { unique: true });
+  await db.collection('messages').createIndex({ roomId: 1, id: -1 });
   for (const name of ['reports', 'joinRequests', 'groupRequests', 'roomRequests']) {
     await db.collection(name).createIndex({ id: 1 }, { unique: true });
   }

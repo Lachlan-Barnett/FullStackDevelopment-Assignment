@@ -3,6 +3,9 @@ const { nextId, NO_ID } = require('./db');
 
 const MAX_TEXT_LENGTH = 2000;
 
+// Only the most recent messages in each room are kept, per the client's requirements.
+const HISTORY_SIZE = 5;
+
 // Socket.IO room name for a chat room.
 const channel = (roomId) => `room:${roomId}`;
 
@@ -10,6 +13,7 @@ function initializeSockets(io, db) {
   const { userFromToken } = createAuth(db);
   const groups = db.collection('groups');
   const rooms = db.collection('rooms');
+  const messages = db.collection('messages');
 
   // Who is in each chat room: roomId -> (userId -> { username, sockets }).
   // A user with several tabs open stays "present" until their last tab leaves.
@@ -27,6 +31,26 @@ function initializeSockets(io, db) {
     const group = await groups.findOne({ id: room.groupId }, NO_ID);
     if (!group?.members.some((m) => m.userId === userId)) return { error: 'Group members only' };
     return { room };
+  }
+
+  // The stored messages for a room, oldest first.
+  async function recentMessages(roomId) {
+    const newestFirst = await messages.find({ roomId }, NO_ID).sort({ id: -1 }).limit(HISTORY_SIZE).toArray();
+    return newestFirst.reverse();
+  }
+
+  // Saves a message, then deletes anything in that room older than the newest HISTORY_SIZE.
+  async function storeMessage(message) {
+    await messages.insertOne({ ...message });
+    const oldestToDelete = await messages
+      .find({ roomId: message.roomId }, { projection: { id: 1 } })
+      .sort({ id: -1 })
+      .skip(HISTORY_SIZE)
+      .limit(1)
+      .next();
+    if (oldestToDelete) {
+      await messages.deleteMany({ roomId: message.roomId, id: { $lte: oldestToDelete.id } });
+    }
   }
 
   function addPresence(socket, roomId) {
@@ -103,7 +127,7 @@ function initializeSockets(io, db) {
       const present = presentUsers(room.id);
       io.to(channel(room.id)).emit('presence:update', { roomId: room.id, users: present });
 
-      return { ok: true, history: [], present };
+      return { ok: true, history: await recentMessages(room.id), present };
     });
 
     handle('room:leave', async ({ roomId }) => {
@@ -135,6 +159,7 @@ function initializeSockets(io, db) {
         content: text,
         timestamp: new Date().toISOString(), // server time; each browser shows it in local time
       };
+      await storeMessage(message);
       io.to(channel(roomId)).emit('message:new', message);
       return { ok: true, message };
     });
