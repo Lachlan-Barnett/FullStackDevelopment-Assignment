@@ -230,6 +230,8 @@ export class Chat {
     }
   }
 
+  protected readonly serverUrl = SERVER_URL;
+
   imageUrl(message: Message) {
     return `${SERVER_URL}${message.content}`;
   }

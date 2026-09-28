@@ -48,6 +48,20 @@ async function deleteUploads(urlPaths) {
   );
 }
 
+// Profile photos live at a fixed path per user and are overwritten when changed, so messages that
+// show an older photo never point at a deleted file. The ?v= part makes browsers fetch the new version.
+const AVATARS_DIR = path.join(UPLOADS_DIR, 'avatars');
+fs.mkdirSync(AVATARS_DIR, { recursive: true });
+
+async function saveAvatar(userId, buffer) {
+  await fs.promises.writeFile(path.join(AVATARS_DIR, `${Number(userId)}.png`), buffer);
+  return `${UPLOADS_URL}/avatars/${Number(userId)}.png?v=${Date.now()}`;
+}
+
+async function deleteAvatar(userId) {
+  await fs.promises.rm(path.join(AVATARS_DIR, `${Number(userId)}.png`), { force: true });
+}
+
 // Express middleware: receives the "image" field and turns upload problems into clear 400/413 responses.
 function handleImageUpload(req, res, next) {
   receiveImage(req, res, (err) => {
@@ -67,4 +81,6 @@ module.exports = {
   savePng,
   isStoredUpload,
   deleteUploads,
+  saveAvatar,
+  deleteAvatar,
 };

@@ -2,6 +2,7 @@
 // WARNING: this deletes everything in the Fabulari database first.
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const path = require('path');
 const { connect, createIndexes, DB_NAME } = require('./db');
 const { UPLOADS_DIR } = require('./uploads');
 
@@ -13,14 +14,14 @@ async function seed(db) {
 
   // Uploaded images belong to messages that no longer exist, so clear them too.
   await fs.promises.rm(UPLOADS_DIR, { recursive: true, force: true });
-  await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
+  await fs.promises.mkdir(path.join(UPLOADS_DIR, 'avatars'), { recursive: true });
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const users = [
     { id: 1, email: 'admin@test.com', username: 'admin', birthdate: '2000-01-01', role: 'superadmin' },
     { id: 2, email: 'user1@com.au', username: 'user1', birthdate: '2000-01-01', role: 'user' },
     { id: 3, email: 'user2@com.au', username: 'user2', birthdate: '2000-01-01', role: 'user' },
-  ].map((u) => ({ ...u, passwordHash }));
+  ].map((u) => ({ ...u, passwordHash, profilePhoto: null }));
 
   const groups = [
     {

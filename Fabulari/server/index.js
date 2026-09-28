@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const createAuth = require('./auth');
 const { nextId, NO_ID, CASE_INSENSITIVE } = require('./db');
-const { handleImageUpload, savePng, deleteUploads } = require('./uploads');
+const { handleImageUpload, savePng, deleteUploads, saveAvatar, deleteAvatar } = require('./uploads');
 
 const SALT_ROUNDS = 10;
 
@@ -75,7 +75,15 @@ function initializeRoutes(app, db) {
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = { id: await nextId(db, 'users'), email, username, birthdate, passwordHash, role: 'user' };
+    const user = {
+      id: await nextId(db, 'users'),
+      email,
+      username,
+      birthdate,
+      passwordHash,
+      role: 'user',
+      profilePhoto: null,
+    };
     await users.insertOne(user);
 
     res.json({ valid: true, token: signToken(user), ...publicUser(user) });
@@ -115,6 +123,19 @@ function initializeRoutes(app, db) {
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     await users.updateOne({ id: req.user.id }, { $set: { passwordHash } });
     res.json({ updated: true });
+  });
+
+  // Profile photo: PNG only, 2MB max (same checks as chat images). Replaces any existing photo.
+  app.put('/api/users/:userId/photo', requireSelf, handleImageUpload, async (req, res) => {
+    const profilePhoto = await saveAvatar(req.user.id, req.file.buffer);
+    await users.updateOne({ id: req.user.id }, { $set: { profilePhoto } });
+    res.json(publicUser({ ...req.user, profilePhoto }));
+  });
+
+  app.delete('/api/users/:userId/photo', requireSelf, async (req, res) => {
+    await deleteAvatar(req.user.id);
+    await users.updateOne({ id: req.user.id }, { $set: { profilePhoto: null } });
+    res.json(publicUser({ ...req.user, profilePhoto: null }));
   });
 
   app.get('/api/groups', async (req, res) => {

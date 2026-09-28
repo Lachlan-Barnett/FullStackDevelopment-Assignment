@@ -34,11 +34,36 @@
 }
 
 .avatar-large {
+  display: block;
   width: 100px;
   height: 100px;
   border-radius: 50%;
   border: 2px solid #333;
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.75rem;
+  object-fit: cover;
+}
+
+.avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f5fbf;
+  color: #fff;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.photo-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.photo-hint {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0.25rem 0 0.75rem;
 }
 
 .field-box {

@@ -68,7 +68,11 @@
             <div class="notice">{{ item.text }}</div>
           } @else {
             <div class="message" [class.mine]="isMine(item.message)">
-              <div class="avatar" aria-hidden="true">{{ item.message.senderName.charAt(0).toUpperCase() }}</div>
+              @if (item.message.senderPhoto) {
+                <img class="avatar" [src]="serverUrl + item.message.senderPhoto" alt="" aria-hidden="true">
+              } @else {
+                <div class="avatar" aria-hidden="true">{{ item.message.senderName.charAt(0).toUpperCase() }}</div>
+              }
               <div class="message-body">
                 <div class="message-meta">
                   <span class="sender">{{ item.message.senderName }}</span>

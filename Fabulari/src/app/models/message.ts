@@ -5,6 +5,7 @@ export interface Message {
   roomId: number;
   senderId: number;
   senderName: string;
+  senderPhoto?: string | null; // the sender's current profile photo path, if they have one
   type: MessageType;
   content: string; // the text, or the image URL for an image message
   timestamp: string;

@@ -15,6 +15,7 @@ function initializeSockets(io, db) {
   const groups = db.collection('groups');
   const rooms = db.collection('rooms');
   const messages = db.collection('messages');
+  const users = db.collection('users');
 
   // Who is in each chat room: roomId -> (userId -> { username, sockets }).
   // A user with several tabs open stays "present" until their last tab leaves.
@@ -34,10 +35,16 @@ function initializeSockets(io, db) {
     return { room };
   }
 
-  // The stored messages for a room, oldest first.
+  // The stored messages for a room, oldest first, each with the sender's current profile photo.
+  // Photos aren't stored on messages, so a changed photo shows on older messages too.
   async function recentMessages(roomId) {
     const newestFirst = await messages.find({ roomId }, NO_ID).sort({ id: -1 }).limit(HISTORY_SIZE).toArray();
-    return newestFirst.reverse();
+    const senderIds = [...new Set(newestFirst.map((m) => m.senderId))];
+    const senders = await users
+      .find({ id: { $in: senderIds } }, { projection: { _id: 0, id: 1, profilePhoto: 1 } })
+      .toArray();
+    const photos = new Map(senders.map((u) => [u.id, u.profilePhoto ?? null]));
+    return newestFirst.reverse().map((m) => ({ ...m, senderPhoto: photos.get(m.senderId) ?? null }));
   }
 
   // Saves a message, then deletes anything in that room older than the newest HISTORY_SIZE.
@@ -166,18 +173,23 @@ function initializeSockets(io, db) {
       const { value, error: contentError } = validateContent(type, content);
       if (contentError) return { ok: false, message: contentError };
 
+      // Read the sender fresh so a username or photo changed mid-session is used straight away.
+      const sender = (await users.findOne({ id: user.id }, NO_ID)) ?? user;
+
       const message = {
         id: await nextId(db, 'messages'),
         roomId,
-        senderId: user.id,
-        senderName: user.username,
+        senderId: sender.id,
+        senderName: sender.username,
         type,
         content: value,
         timestamp: new Date().toISOString(), // server time; each browser shows it in local time
       };
       await storeMessage(message);
-      io.to(channel(roomId)).emit('message:new', message);
-      return { ok: true, message };
+
+      const withPhoto = { ...message, senderPhoto: sender.profilePhoto ?? null };
+      io.to(channel(roomId)).emit('message:new', withPhoto);
+      return { ok: true, message: withPhoto };
     });
 
     socket.on('disconnect', () => {

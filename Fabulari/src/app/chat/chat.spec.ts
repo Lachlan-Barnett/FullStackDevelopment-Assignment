@@ -117,6 +117,18 @@ describe('Chat', () => {
     expect(badges.length).toBe(1);
   });
 
+  it("shows the sender's profile photo, or their initial when they have none", async () => {
+    await loadPage();
+    fakeChat.messages$.next({ ...msg(7, 2, 'user1', 'with photo'), senderPhoto: '/uploads/avatars/2.png?v=1' });
+    fakeChat.messages$.next(msg(8, 3, 'user2', 'no photo'));
+    await settle();
+    const avatars = (fixture.nativeElement as HTMLElement).querySelectorAll('.message .avatar');
+    expect(avatars[0].tagName).toBe('IMG');
+    expect(avatars[0].getAttribute('src')).toBe('http://localhost:3000/uploads/avatars/2.png?v=1');
+    expect(avatars[1].tagName).toBe('DIV');
+    expect(avatars[1].textContent?.trim()).toBe('U');
+  });
+
   it('shows join and leave notices', async () => {
     await loadPage();
     const user = { userId: 2, username: 'user1' };

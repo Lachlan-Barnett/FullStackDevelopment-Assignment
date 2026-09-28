@@ -6,7 +6,24 @@
   <div class="card profile-panel">
     <div class="card-body">
       <div class="panel-title">Profile</div>
-      <div class="avatar-large"></div>
+      @if (photoUrl(); as url) {
+        <img class="avatar-large" [src]="url" alt="Your profile photo">
+      } @else {
+        <div class="avatar-large avatar-initial" aria-label="No profile photo">{{ initial() }}</div>
+      }
+      <div class="photo-actions">
+        <input #photoPicker type="file" accept="image/png" class="visually-hidden" tabindex="-1" aria-hidden="true" (change)="uploadPhoto(photoPicker)">
+        <button type="button" class="btn btn-sm btn-outline-dark" [disabled]="photoBusy()" (click)="photoPicker.click()">
+          {{ photoUrl() ? 'Change photo' : 'Add photo' }}
+        </button>
+        @if (photoUrl()) {
+          <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="photoBusy()" (click)="removePhoto()">Remove</button>
+        }
+      </div>
+      <p class="photo-hint">PNG, up to 2MB</p>
+      @if (photoError()) {
+        <div class="alert alert-danger py-1" role="alert">{{ photoError() }}</div>
+      }
       <div class="field-box">{{ currentUser()?.email }}</div>
       <div class="field-box">{{ currentUser()?.username }}</div>
       <div class="field-box">{{ currentUser()?.birthdate }}</div>
