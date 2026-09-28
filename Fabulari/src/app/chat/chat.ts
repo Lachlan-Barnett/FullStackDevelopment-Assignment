@@ -1,13 +1,23 @@
 import { afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { ChatSocketService } from '../services/chat-socket.service';
-import { API_URL } from '../api.config';
+import { API_URL, SERVER_URL } from '../api.config';
 import { Group, GroupMemberDetails, Message, PresentUser, Room, THEME_TINTS } from '../models';
+
+// Client limits for image messages: PNG only, at most 2MB. The server checks these again.
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+// The server's message for an HTTP or socket error, or a fallback.
+function errorMessage(err: unknown, fallback: string) {
+  if (err instanceof HttpErrorResponse) return err.error?.message ?? fallback;
+  return err instanceof Error ? err.message : fallback;
+}
 
 type InfoTab = 'info' | 'age' | 'colour' | 'members';
 
@@ -45,6 +55,7 @@ export class Chat {
   protected readonly feed = signal<FeedItem[]>([]);
   protected readonly present = signal<PresentUser[]>([]);
   protected readonly chatError = signal('');
+  protected readonly uploading = signal(false);
   protected readonly draft = signal('');
 
   private readonly messageList = viewChild<ElementRef<HTMLElement>>('messageList');
@@ -187,6 +198,40 @@ export class Chat {
 
   private addNotice(text: string) {
     this.feed.update((items) => [...items, { kind: 'notice', key: `n${++this.noticeCount}`, text }]);
+  }
+
+  // Sends a chosen PNG: upload it over HTTP first, then send an image message with the returned path.
+  async sendImage(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = ''; // allow choosing the same file again later
+    const roomId = this.joinedRoomId;
+    if (!file || roomId === null) return;
+
+    if (file.type !== 'image/png') {
+      this.chatError.set('Only PNG images can be sent.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      this.chatError.set('Images must be 2MB or smaller.');
+      return;
+    }
+
+    this.chatError.set('');
+    this.uploading.set(true);
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      const { url } = await firstValueFrom(this.http.post<{ url: string }>(`${API_URL}/rooms/${roomId}/images`, form));
+      await this.chat.sendMessage(roomId, 'image', url);
+    } catch (err) {
+      this.chatError.set(errorMessage(err, 'Unable to send that image.'));
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  imageUrl(message: Message) {
+    return `${SERVER_URL}${message.content}`;
   }
 
   async sendMessage() {

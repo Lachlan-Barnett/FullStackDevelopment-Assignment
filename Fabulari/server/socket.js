@@ -1,5 +1,6 @@
 const createAuth = require('./auth');
 const { nextId, NO_ID } = require('./db');
+const { isStoredUpload, deleteUploads } = require('./uploads');
 
 const MAX_TEXT_LENGTH = 2000;
 
@@ -49,8 +50,27 @@ function initializeSockets(io, db) {
       .limit(1)
       .next();
     if (oldestToDelete) {
-      await messages.deleteMany({ roomId: message.roomId, id: { $lte: oldestToDelete.id } });
+      const tooOld = { roomId: message.roomId, id: { $lte: oldestToDelete.id } };
+      const oldImages = await messages.find({ ...tooOld, type: 'image' }, { projection: { content: 1 } }).toArray();
+      await messages.deleteMany(tooOld);
+      await deleteUploads(oldImages.map((m) => m.content));
     }
+  }
+
+  // Checks the content of a message and returns the value to store, or an error message.
+  function validateContent(type, content) {
+    if (type === 'text') {
+      const text = typeof content === 'string' ? content.trim() : '';
+      if (!text) return { error: 'Message cannot be empty' };
+      if (text.length > MAX_TEXT_LENGTH) return { error: `Messages can be at most ${MAX_TEXT_LENGTH} characters` };
+      return { value: text };
+    }
+    if (type === 'image') {
+      // Images are uploaded first (POST /api/rooms/:roomId/images); the message carries the returned path.
+      if (!isStoredUpload(content)) return { error: 'Upload the image before sending it' };
+      return { value: content };
+    }
+    return { error: 'Unsupported message type' };
   }
 
   function addPresence(socket, roomId) {
@@ -143,20 +163,16 @@ function initializeSockets(io, db) {
       const { error } = await roomForMember(roomId, user.id);
       if (error) return { ok: false, message: error };
 
-      if (type !== 'text') return { ok: false, message: 'Unsupported message type' };
-      const text = typeof content === 'string' ? content.trim() : '';
-      if (!text) return { ok: false, message: 'Message cannot be empty' };
-      if (text.length > MAX_TEXT_LENGTH) {
-        return { ok: false, message: `Messages can be at most ${MAX_TEXT_LENGTH} characters` };
-      }
+      const { value, error: contentError } = validateContent(type, content);
+      if (contentError) return { ok: false, message: contentError };
 
       const message = {
         id: await nextId(db, 'messages'),
         roomId,
         senderId: user.id,
         senderName: user.username,
-        type: 'text',
-        content: text,
+        type,
+        content: value,
         timestamp: new Date().toISOString(), // server time; each browser shows it in local time
       };
       await storeMessage(message);

@@ -77,7 +77,11 @@
                   }
                   <time class="timestamp" [attr.datetime]="item.message.timestamp">{{ item.message.timestamp | date: 'd MMM, h:mm a' }}</time>
                 </div>
-                <div class="message-text">{{ item.message.content }}</div>
+                @if (item.message.type === 'image') {
+                  <img class="message-image" [src]="imageUrl(item.message)" [alt]="'Image sent by ' + item.message.senderName" loading="lazy">
+                } @else {
+                  <div class="message-text">{{ item.message.content }}</div>
+                }
               </div>
             </div>
           }
@@ -99,6 +103,15 @@
       }
 
       <form class="message-input-row" (ngSubmit)="sendMessage()">
+        <input #imagePicker type="file" accept="image/png" class="visually-hidden" tabindex="-1" aria-hidden="true" (change)="sendImage(imagePicker)">
+        <button
+          type="button"
+          class="btn btn-outline-dark attach-btn"
+          aria-label="Send a PNG image (max 2MB)"
+          title="Send a PNG image (max 2MB)"
+          [disabled]="!selectedRoom() || uploading()"
+          (click)="imagePicker.click()"
+        >{{ uploading() ? '…' : '+' }}</button>
         <input
           type="text"
           class="form-control user-message"

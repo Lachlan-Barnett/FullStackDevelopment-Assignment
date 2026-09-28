@@ -1,13 +1,19 @@
 // Resets the database and fills it with demo data. Run with: npm run seed
 // WARNING: this deletes everything in the Fabulari database first.
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
 const { connect, createIndexes, DB_NAME } = require('./db');
+const { UPLOADS_DIR } = require('./uploads');
 
 const DEMO_PASSWORD = '123';
 
 async function seed(db) {
   await db.dropDatabase();
   await createIndexes(db);
+
+  // Uploaded images belong to messages that no longer exist, so clear them too.
+  await fs.promises.rm(UPLOADS_DIR, { recursive: true, force: true });
+  await fs.promises.mkdir(UPLOADS_DIR, { recursive: true });
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const users = [

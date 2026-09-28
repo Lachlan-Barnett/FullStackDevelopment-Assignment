@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const createAuth = require('./auth');
 const { nextId, NO_ID, CASE_INSENSITIVE } = require('./db');
+const { handleImageUpload, savePng, deleteUploads } = require('./uploads');
 
 const SALT_ROUNDS = 10;
 
@@ -33,6 +34,7 @@ function initializeRoutes(app, db) {
   const joinRequests = db.collection('joinRequests');
   const groupRequests = db.collection('groupRequests');
   const roomRequests = db.collection('roomRequests');
+  const messages = db.collection('messages');
 
   const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
     createAuth(db);
@@ -390,9 +392,32 @@ function initializeRoutes(app, db) {
     const roomId = Number(req.params.roomId);
     const result = await rooms.deleteOne({ id: roomId, groupId: req.group.id });
     if (!result.deletedCount) return res.status(404).json({ message: 'Room not found' });
-    await db.collection('messages').deleteMany({ roomId });
+
+    const images = await messages.find({ roomId, type: 'image' }, { projection: { content: 1 } }).toArray();
+    await messages.deleteMany({ roomId });
+    await deleteUploads(images.map((m) => m.content));
     res.json({ deleted: true });
   });
+
+  // Step 1 of sending an image: upload the PNG (max 2MB) and get back its path.
+  // Step 2 is sending a message:send over the socket with type "image" and that path.
+  // The room is checked before the file is read, so non-members can't upload at all.
+  app.post(
+    '/api/rooms/:roomId/images',
+    async (req, res, next) => {
+      const room = await rooms.findOne({ id: Number(req.params.roomId) }, NO_ID);
+      if (!room) return res.status(404).json({ message: 'Room not found' });
+      const group = await groups.findOne({ id: room.groupId }, NO_ID);
+      if (!group?.members.some((m) => m.userId === req.user.id)) {
+        return res.status(403).json({ message: 'Group members only' });
+      }
+      next();
+    },
+    handleImageUpload,
+    async (req, res) => {
+      res.json({ url: await savePng(req.file.buffer) });
+    },
+  );
 
   // A report is always filed within a group, so that group's admins can act on it.
   app.post('/api/reports', async (req, res) => {

@@ -2,3 +2,6 @@ node_modules/
 dist/
 .angular/
 *.log
+
+# Images uploaded to the chat server at runtime
+Fabulari/server/uploads/

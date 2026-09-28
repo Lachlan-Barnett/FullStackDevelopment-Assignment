@@ -153,6 +153,61 @@ describe('Chat', () => {
     expect(input.value).toBe('hi');
   });
 
+  describe('images', () => {
+    type WithSendImage = { sendImage(input: HTMLInputElement): Promise<void> };
+    const pick = (file: File) => ({ files: [file], value: 'C:\\fakepath\\x' }) as unknown as HTMLInputElement;
+    const png = (bytes = 10) => new File([new Uint8Array(bytes)], 'pic.png', { type: 'image/png' });
+
+    it('uploads a PNG then sends it as an image message', async () => {
+      await loadPage();
+      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png()));
+      const upload = http.expectOne(`${API_URL}/rooms/1/images`);
+      expect(upload.request.method).toBe('POST');
+      expect((upload.request.body as FormData).get('image')).toBeInstanceOf(File);
+      upload.flush({ url: '/uploads/abc.png' });
+      await sending;
+      expect(fakeChat.sendMessage).toHaveBeenCalledWith(1, 'image', '/uploads/abc.png');
+    });
+
+    it('refuses non-PNG files without uploading', async () => {
+      await loadPage();
+      const jpg = new File([new Uint8Array(10)], 'pic.jpg', { type: 'image/jpeg' });
+      await (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(jpg));
+      await settle();
+      http.expectNone(`${API_URL}/rooms/1/images`);
+      expect(text()).toContain('Only PNG images can be sent.');
+    });
+
+    it('refuses images over 2MB without uploading', async () => {
+      await loadPage();
+      await (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png(2 * 1024 * 1024 + 1)));
+      await settle();
+      http.expectNone(`${API_URL}/rooms/1/images`);
+      expect(text()).toContain('Images must be 2MB or smaller.');
+    });
+
+    it('shows the server error if the upload is rejected', async () => {
+      await loadPage();
+      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png()));
+      http
+        .expectOne(`${API_URL}/rooms/1/images`)
+        .flush({ message: 'Only PNG images are allowed' }, { status: 400, statusText: 'Bad Request' });
+      await sending;
+      await settle();
+      expect(text()).toContain('Only PNG images are allowed');
+      expect(fakeChat.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('shows image messages as images from the server', async () => {
+      await loadPage();
+      fakeChat.messages$.next({ ...msg(9, 2, 'user1', '/uploads/abc.png'), type: 'image' });
+      await settle();
+      const img = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.message-image');
+      expect(img?.getAttribute('src')).toBe('http://localhost:3000/uploads/abc.png');
+      expect(img?.getAttribute('alt')).toBe('Image sent by user1');
+    });
+  });
+
   it('leaves the old room when switching rooms', async () => {
     await loadPage();
     (fixture.componentInstance as unknown as { selectRoom(id: number): void }).selectRoom(2);
