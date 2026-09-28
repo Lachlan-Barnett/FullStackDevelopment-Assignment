@@ -26,7 +26,7 @@ function createServer(db) {
   });
 
   initializeRoutes(app, db);
-  initializeSockets(io);
+  initializeSockets(io, db);
 
   return server;
 }

@@ -12,6 +12,18 @@ function createAuth(db) {
     return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
   }
 
+  // Returns the user a token belongs to, or null if the token is invalid/expired or the user is gone.
+  // Shared by the REST routes and the socket connection.
+  async function userFromToken(token) {
+    let id;
+    try {
+      ({ id } = jwt.verify(token, JWT_SECRET));
+    } catch {
+      return null;
+    }
+    return users.findOne({ id }, NO_ID);
+  }
+
   // Reads "Authorization: Bearer <token>" and attaches the matching user to req.user.
   // The user is looked up fresh each time so role changes and deletions apply immediately.
   async function requireAuth(req, res, next) {
@@ -19,15 +31,8 @@ function createAuth(db) {
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ message: 'Not logged in' });
 
-    let id;
-    try {
-      ({ id } = jwt.verify(token, JWT_SECRET));
-    } catch {
-      return res.status(401).json({ message: 'Session expired, please log in again' });
-    }
-
-    const user = await users.findOne({ id }, NO_ID);
-    if (!user) return res.status(401).json({ message: 'Account no longer exists' });
+    const user = await userFromToken(token);
+    if (!user) return res.status(401).json({ message: 'Session expired, please log in again' });
     req.user = user;
     next();
   }
@@ -72,7 +77,7 @@ function createAuth(db) {
     next();
   }
 
-  return { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf };
+  return { signToken, userFromToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf };
 }
 
 module.exports = createAuth;
