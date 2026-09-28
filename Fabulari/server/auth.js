@@ -1,29 +1,35 @@
 const jwt = require('jsonwebtoken');
+const { NO_ID } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fabulari-dev-secret';
 const TOKEN_EXPIRY = '1d';
 
 function createAuth(db) {
+  const users = db.collection('users');
+  const groups = db.collection('groups');
+
   function signToken(user) {
     return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
   }
 
   // Reads "Authorization: Bearer <token>" and attaches the matching user to req.user.
   // The user is looked up fresh each time so role changes and deletions apply immediately.
-  function requireAuth(req, res, next) {
+  async function requireAuth(req, res, next) {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ message: 'Not logged in' });
 
+    let id;
     try {
-      const { id } = jwt.verify(token, JWT_SECRET);
-      const user = db.users.find((u) => u.id === id);
-      if (!user) return res.status(401).json({ message: 'Account no longer exists' });
-      req.user = user;
-      next();
+      ({ id } = jwt.verify(token, JWT_SECRET));
     } catch {
       return res.status(401).json({ message: 'Session expired, please log in again' });
     }
+
+    const user = await users.findOne({ id }, NO_ID);
+    if (!user) return res.status(401).json({ message: 'Account no longer exists' });
+    req.user = user;
+    next();
   }
 
   function requireSuperAdmin(req, res, next) {
@@ -34,8 +40,8 @@ function createAuth(db) {
   }
 
   // Must run after requireAuth on a route with a :groupId param.
-  function requireGroupAdmin(req, res, next) {
-    const group = db.groups.find((g) => g.id === Number(req.params.groupId));
+  async function requireGroupAdmin(req, res, next) {
+    const group = await groups.findOne({ id: Number(req.params.groupId) }, NO_ID);
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
     const isAdmin = group.members.some((m) => m.userId === req.user.id && m.role === 'admin');
@@ -46,8 +52,8 @@ function createAuth(db) {
   }
 
   // Must run after requireAuth on a route with a :groupId param.
-  function requireGroupMember(req, res, next) {
-    const group = db.groups.find((g) => g.id === Number(req.params.groupId));
+  async function requireGroupMember(req, res, next) {
+    const group = await groups.findOne({ id: Number(req.params.groupId) }, NO_ID);
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
     if (!group.members.some((m) => m.userId === req.user.id)) {

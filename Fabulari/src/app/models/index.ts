@@ -5,3 +5,4 @@ export * from './requests';
 export * from './report';
 export * from './audit-log';
 export * from './colour-theme';
+export * from './message';
