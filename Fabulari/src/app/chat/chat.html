@@ -48,11 +48,69 @@
         <button type="button" class="admin-link" routerLink="/admin/super">Super Admin &gt;</button>
       }
 
-      <div class="messages-list" [style.background-color]="themeTint()"></div>
+      @if (selectedRoom(); as room) {
+        <div class="presence-bar">
+          <span class="room-title"># {{ room.name }}</span>
+          <span class="present-label">In this room:</span>
+          <span class="present-users">
+            @for (user of present(); track user.userId; let last = $last) {
+              {{ user.username }}{{ last ? '' : ', ' }}
+            } @empty {
+              &mdash;
+            }
+          </span>
+        </div>
+      }
 
-      <form class="message-input-row">
-        <input type="text" class="form-control user-message" placeholder="Users Message">
-        <button type="submit" class="btn btn-outline-dark">&gt;</button>
+      <div class="messages-list" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
+        @for (item of feed(); track item.key) {
+          @if (item.kind === 'notice') {
+            <div class="notice">{{ item.text }}</div>
+          } @else {
+            <div class="message" [class.mine]="isMine(item.message)">
+              <div class="avatar" aria-hidden="true">{{ item.message.senderName.charAt(0).toUpperCase() }}</div>
+              <div class="message-body">
+                <div class="message-meta">
+                  <span class="sender">{{ item.message.senderName }}</span>
+                  @if (adminIds().has(item.message.senderId)) {
+                    <span class="admin-badge">Admin</span>
+                  }
+                  <time class="timestamp" [attr.datetime]="item.message.timestamp">{{ item.message.timestamp | date: 'd MMM, h:mm a' }}</time>
+                </div>
+                <div class="message-text">{{ item.message.content }}</div>
+              </div>
+            </div>
+          }
+        } @empty {
+          <p class="empty-note">
+            @if (selectedRoom()) {
+              No messages yet &mdash; say hello!
+            } @else if (selectedGroup()) {
+              This group has no rooms yet.
+            } @else {
+              Join a group to start chatting.
+            }
+          </p>
+        }
+      </div>
+
+      @if (chatError()) {
+        <div class="chat-error" role="alert">{{ chatError() }}</div>
+      }
+
+      <form class="message-input-row" (ngSubmit)="sendMessage()">
+        <input
+          type="text"
+          class="form-control user-message"
+          name="draft"
+          placeholder="Type a message"
+          aria-label="Message"
+          maxlength="2000"
+          autocomplete="off"
+          [(ngModel)]="draft"
+          [disabled]="!selectedRoom()"
+        >
+        <button type="submit" class="btn btn-outline-dark" aria-label="Send message" [disabled]="!selectedRoom() || !draft().trim()">&gt;</button>
       </form>
     </main>
 

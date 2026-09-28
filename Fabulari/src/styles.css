@@ -48,3 +48,18 @@ body.dark-theme .form-control::placeholder {
   color: #f1f1f1;
   opacity: 1;
 }
+
+body.dark-theme .message-body {
+  background: rgba(42, 42, 42, 0.9);
+  border-color: #555;
+}
+
+body.dark-theme .message.mine .message-body {
+  background: #1d3557;
+}
+
+body.dark-theme .timestamp,
+body.dark-theme .present-label,
+body.dark-theme .notice {
+  color: #bbb;
+}

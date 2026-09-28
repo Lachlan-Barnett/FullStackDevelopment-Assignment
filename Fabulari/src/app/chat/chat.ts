@@ -1,15 +1,24 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { afterRenderEffect, Component, computed, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
+import { DatePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { ChatSocketService } from '../services/chat-socket.service';
 import { API_URL } from '../api.config';
-import { Group, GroupMemberDetails, Room, THEME_TINTS } from '../models';
+import { Group, GroupMemberDetails, Message, PresentUser, Room, THEME_TINTS } from '../models';
 
 type InfoTab = 'info' | 'age' | 'colour' | 'members';
 
+// The message area shows chat messages mixed with "X joined / X left" notices.
+type FeedItem =
+  | { kind: 'message'; key: string; message: Message }
+  | { kind: 'notice'; key: string; text: string };
+
 @Component({
   selector: 'app-chat',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule, DatePipe],
   templateUrl: './chat.html',
   styleUrl: './chat.css',
 })
@@ -18,6 +27,8 @@ export class Chat {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly chat = inject(ChatSocketService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly currentUser = this.auth.currentUser;
   protected readonly myGroups = signal<Group[]>([]);
@@ -30,8 +41,22 @@ export class Chat {
   protected readonly showGroups = signal(true);
   protected readonly infoTab = signal<InfoTab>('info');
 
+  // Live chat state for the room currently open.
+  protected readonly feed = signal<FeedItem[]>([]);
+  protected readonly present = signal<PresentUser[]>([]);
+  protected readonly chatError = signal('');
+  protected readonly draft = signal('');
+
+  private readonly messageList = viewChild<ElementRef<HTMLElement>>('messageList');
+  private joinedRoomId: number | null = null;
+  private noticeCount = 0;
+
   protected readonly selectedGroup = computed(() =>
     this.myGroups().find((g) => g.id === this.selectedGroupId()) ?? null,
+  );
+
+  protected readonly selectedRoom = computed(() =>
+    this.rooms().find((r) => r.id === this.selectedRoomId()) ?? null,
   );
 
   protected readonly isGroupAdmin = computed(() => {
@@ -41,12 +66,44 @@ export class Chat {
     return group.members.some((m) => m.userId === user.id && m.role === 'admin');
   });
 
+  // Ids of the selected group's admins, for the "Admin" badge on their messages.
+  protected readonly adminIds = computed(
+    () => new Set(this.selectedGroup()?.members.filter((m) => m.role === 'admin').map((m) => m.userId) ?? []),
+  );
+
   protected readonly isSuperAdmin = computed(() => this.currentUser()?.role === 'superadmin');
 
   protected readonly themeTint = computed(() => {
     const theme = this.selectedGroup()?.colourTheme;
     return theme ? THEME_TINTS[theme] : null;
   });
+
+  constructor() {
+    this.chat.messages$.pipe(takeUntilDestroyed()).subscribe((message) => {
+      if (message.roomId !== this.joinedRoomId) return;
+      this.feed.update((items) => [...items, { kind: 'message', key: `m${message.id}`, message }]);
+    });
+
+    this.chat.presence$.pipe(takeUntilDestroyed()).subscribe(({ roomId, users }) => {
+      if (roomId === this.joinedRoomId) this.present.set(users);
+    });
+
+    this.chat.activity$.pipe(takeUntilDestroyed()).subscribe(({ type, roomId, user }) => {
+      if (roomId !== this.joinedRoomId) return;
+      this.addNotice(`${user.username} ${type === 'joined' ? 'joined' : 'left'} the room`);
+    });
+
+    this.chat.errors$.pipe(takeUntilDestroyed()).subscribe((message) => this.chatError.set(message));
+
+    // Keep the newest message in view.
+    afterRenderEffect(() => {
+      this.feed();
+      const list = this.messageList()?.nativeElement;
+      if (list) list.scrollTop = list.scrollHeight;
+    });
+
+    this.destroyRef.onDestroy(() => this.leaveCurrentRoom());
+  }
 
   ngOnInit() {
     this.loadGroups();
@@ -71,7 +128,7 @@ export class Chat {
     this.http.get<Room[]>(`${API_URL}/groups/${groupId}/rooms`).subscribe({
       next: (rooms) => {
         this.rooms.set(rooms);
-        this.selectedRoomId.set(rooms.length ? rooms[0].id : null);
+        this.selectRoom(rooms.length ? rooms[0].id : null);
       },
     });
   }
@@ -93,12 +150,62 @@ export class Chat {
   selectGroup(id: number) {
     this.selectedGroupId.set(id);
     this.members.set([]);
+    this.rooms.set([]);
+    this.selectRoom(null);
     this.loadRooms(id);
     this.loadMembers(id);
   }
 
-  selectRoom(id: number) {
+  selectRoom(id: number | null) {
+    if (id === this.joinedRoomId && id !== null) return;
     this.selectedRoomId.set(id);
+    this.leaveCurrentRoom();
+    if (id !== null) this.joinRoom(id);
+  }
+
+  private async joinRoom(roomId: number) {
+    this.joinedRoomId = roomId;
+    this.chatError.set('');
+    try {
+      const { history, present } = await this.chat.joinRoom(roomId);
+      if (this.joinedRoomId !== roomId) return; // the user already moved to another room
+      this.feed.set(history.map((message) => ({ kind: 'message', key: `m${message.id}`, message })));
+      this.present.set(present);
+    } catch (err) {
+      if (this.joinedRoomId === roomId) {
+        this.chatError.set(err instanceof Error ? err.message : 'Unable to join this room.');
+      }
+    }
+  }
+
+  private leaveCurrentRoom() {
+    if (this.joinedRoomId !== null) this.chat.leaveRoom(this.joinedRoomId);
+    this.joinedRoomId = null;
+    this.feed.set([]);
+    this.present.set([]);
+  }
+
+  private addNotice(text: string) {
+    this.feed.update((items) => [...items, { kind: 'notice', key: `n${++this.noticeCount}`, text }]);
+  }
+
+  async sendMessage() {
+    const roomId = this.joinedRoomId;
+    const text = this.draft().trim();
+    if (roomId === null || !text) return;
+
+    this.chatError.set('');
+    try {
+      // The server echoes the message back through messages$, which adds it to the feed.
+      await this.chat.sendMessage(roomId, 'text', text);
+      this.draft.set('');
+    } catch (err) {
+      this.chatError.set(err instanceof Error ? err.message : 'Unable to send that message.');
+    }
+  }
+
+  isMine(message: Message) {
+    return message.senderId === this.currentUser()?.id;
   }
 
   setInfoTab(tab: InfoTab) {
