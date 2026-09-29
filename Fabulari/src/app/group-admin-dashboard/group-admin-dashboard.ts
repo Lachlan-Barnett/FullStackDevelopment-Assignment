@@ -1,14 +1,15 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { COLOUR_THEMES, ColourTheme, Group, GroupMember, Room, RoomRequest, User } from '../models';
+import { COLOUR_THEMES, ColourTheme, Group, GroupMember, JoinRequest, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, DatePipe],
   templateUrl: './group-admin-dashboard.html',
   styleUrl: './group-admin-dashboard.css',
 })
@@ -26,6 +27,10 @@ export class GroupAdminDashboard {
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};
+
+  // Join requests have their own ids, so they get their own reason boxes.
+  protected readonly joinRequests = signal<JoinRequest[]>([]);
+  protected joinRejectReasons: Record<number, string> = {};
 
   protected editDescription = '';
   protected editAgeLimit = 0;
@@ -46,6 +51,7 @@ export class GroupAdminDashboard {
     this.loadGroup(groupID);
     this.loadRooms(groupID);
     this.loadRoomRequests(groupID);
+    this.loadJoinRequests(groupID);
     this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
@@ -111,6 +117,36 @@ export class GroupAdminDashboard {
           if (approve) this.loadRooms(group.id);
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
+      });
+  }
+
+  private loadJoinRequests(groupId: number) {
+    this.http.get<JoinRequest[]>(`${API_URL}/groups/${groupId}/join-requests`).subscribe({
+      next: (requests) => this.joinRequests.set(requests),
+    });
+  }
+
+  // Approving adds the user as a member (the server re-checks the age limit). A reason is optional.
+  actionJoinRequest(request: JoinRequest, approve: boolean) {
+    const group = this.group();
+    if (!group) return;
+
+    this.errorMessage.set('');
+    this.http
+      .put(`${API_URL}/groups/${group.id}/join-requests/${request.id}`, {
+        approve,
+        reason: this.joinRejectReasons[request.id]?.trim() ?? '',
+      })
+      .subscribe({
+        next: () => {
+          delete this.joinRejectReasons[request.id];
+          this.loadJoinRequests(group.id);
+          if (approve) this.loadGroup(group.id); // show the new member
+        },
+        error: (err) => {
+          this.errorMessage.set(err.error?.message ?? 'Unable to action that request.');
+          this.loadJoinRequests(group.id);
+        },
       });
   }
 

@@ -1,25 +1,163 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
+import { AuthService } from '../services/auth.service';
+import { API_URL } from '../api.config';
+import { Group, JoinRequest, RoomRequest, User } from '../models';
 
 describe('GroupAdminDashboard', () => {
-  let component: GroupAdminDashboard;
   let fixture: ComponentFixture<GroupAdminDashboard>;
+  let http: HttpTestingController;
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [GroupAdminDashboard],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
-    }).compileComponents();
+  const group: Group = {
+    id: 1,
+    name: 'help',
+    description: 'anything',
+    ageLimit: 13,
+    colourTheme: 'Blue',
+    members: [
+      { userId: 2, role: 'admin' },
+      { userId: 3, role: 'member' },
+    ],
+  };
+  const users: User[] = [
+    { id: 2, email: 'u1@x', username: 'user1', birthdate: '2000-01-01', role: 'user' },
+    { id: 3, email: 'u2@x', username: 'user2', birthdate: '2000-01-01', role: 'user' },
+    { id: 7, email: 'new@x', username: 'newbie', birthdate: '1999-01-01', role: 'user' },
+  ];
+  const joinRequest: JoinRequest = {
+    id: 4,
+    groupId: 1,
+    userId: 7,
+    username: 'newbie',
+    status: 'pending',
+    rejectionReason: null,
+    reviewedBy: null,
+    createdAt: '2026-09-29T01:00:00.000Z',
+  };
+  const roomRequests: RoomRequest[] = [
+    { id: 1, groupId: 1, requestedBy: 3, requesterName: 'user2', name: 'memes', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
+    { id: 2, groupId: 1, requestedBy: 2, requesterName: 'user1', name: 'news', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
+  ];
 
-    fixture = TestBed.createComponent(GroupAdminDashboard);
-    component = fixture.componentInstance;
+  const el = () => fixture.nativeElement as HTMLElement;
+  const settle = async () => {
     await fixture.whenStable();
+    fixture.detectChanges();
+  };
+  const panel = (title: string) =>
+    [...el().querySelectorAll('.panel')].find((p) => p.querySelector('.panel-title')?.textContent?.trim() === title)!;
+  const buttonIn = (root: Element, text: string) =>
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
+
+  async function loadPage(joins: JoinRequest[] = [joinRequest]) {
+    fixture = TestBed.createComponent(GroupAdminDashboard);
+    fixture.detectChanges();
+    http.expectOne(`${API_URL}/groups/1`).flush(group);
+    http.expectOne(`${API_URL}/groups/1/rooms`).flush([]);
+    http.expectOne(`${API_URL}/groups/1/room-requests`).flush(roomRequests);
+    http.expectOne(`${API_URL}/groups/1/join-requests`).flush(joins);
+    http.expectOne(`${API_URL}/users`).flush(users);
+    await settle();
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [GroupAdminDashboard],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ groupId: '1' }) } } },
+        { provide: AuthService, useValue: { currentUser: signal({ id: 2, role: 'user' }) } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
   });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
+  describe('join requests', () => {
+    it('lists pending join requests', async () => {
+      await loadPage();
+      expect(panel('Join Requests').textContent).toContain('newbie');
+      expect(panel('Join Requests').textContent).toContain('wants to join');
+    });
+
+    it('shows an empty note when there are none', async () => {
+      await loadPage([]);
+      expect(panel('Join Requests').textContent).toContain('No pending join requests.');
+    });
+
+    it('approving adds the member and clears the request', async () => {
+      await loadPage();
+      buttonIn(panel('Join Requests'), 'Approve').click();
+      const put = http.expectOne(`${API_URL}/groups/1/join-requests/4`);
+      expect(put.request.method).toBe('PUT');
+      expect(put.request.body).toEqual({ approve: true, reason: '' });
+      put.flush({ ...joinRequest, status: 'approved' });
+
+      http.expectOne(`${API_URL}/groups/1/join-requests`).flush([]);
+      http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [...group.members, { userId: 7, role: 'member' }] });
+      await settle();
+
+      expect(panel('Join Requests').textContent).toContain('No pending join requests.');
+      expect(panel('Members').textContent).toContain('newbie');
+    });
+
+    it('rejecting sends the optional reason', async () => {
+      await loadPage();
+      const reason = panel('Join Requests').querySelector<HTMLInputElement>('input')!;
+      reason.value = 'group is full';
+      reason.dispatchEvent(new Event('input'));
+      await settle();
+      buttonIn(panel('Join Requests'), 'Reject').click();
+
+      const put = http.expectOne(`${API_URL}/groups/1/join-requests/4`);
+      expect(put.request.body).toEqual({ approve: false, reason: 'group is full' });
+      put.flush({ ...joinRequest, status: 'rejected' });
+      http.expectOne(`${API_URL}/groups/1/join-requests`).flush([]);
+      http.expectNone(`${API_URL}/groups/1`); // no member change on reject
+    });
+
+    it('shows the server error, e.g. the user no longer meets the age limit', async () => {
+      await loadPage();
+      buttonIn(panel('Join Requests'), 'Approve').click();
+      http
+        .expectOne(`${API_URL}/groups/1/join-requests/4`)
+        .flush({ message: 'That user no longer meets the group age limit' }, { status: 400, statusText: 'Bad Request' });
+      http.expectOne(`${API_URL}/groups/1/join-requests`).flush([joinRequest]);
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('That user no longer meets the group age limit');
+    });
+  });
+
+  describe('channel requests', () => {
+    it("can't action your own request", async () => {
+      await loadPage();
+      const cards = [...panel('Channel Requests').querySelectorAll('.request-card')];
+      expect(cards[0].querySelector('button')).not.toBeNull(); // user2's request
+      expect(cards[1].textContent).toContain('another admin must review it'); // user1's own
+      expect(cards[1].querySelector('button')).toBeNull();
+    });
+
+    it('needs a reason to reject', async () => {
+      await loadPage();
+      buttonIn(panel('Channel Requests'), 'Reject').click();
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('Enter a reason before rejecting "memes".');
+      http.expectNone(`${API_URL}/groups/1/room-requests/1`);
+    });
+  });
+
+  describe('members', () => {
+    it('marks you and disables demoting the only admin', async () => {
+      await loadPage();
+      const rows = [...panel('Members').querySelectorAll('.member-row')];
+      expect(rows[0].textContent).toContain('user1 (you)');
+      expect(rows[0].querySelector('button')!.disabled).toBe(true);
+      expect(rows[1].querySelector('button')!.disabled).toBe(false);
+    });
   });
 });

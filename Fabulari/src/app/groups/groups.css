@@ -79,3 +79,35 @@
   color: #b00020;
   text-align: center;
 }
+
+.request-card {
+  margin-bottom: 1rem;
+}
+
+.request-form {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-hint {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.form-row .form-field {
+  flex: 1;
+}
+
+.form-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}

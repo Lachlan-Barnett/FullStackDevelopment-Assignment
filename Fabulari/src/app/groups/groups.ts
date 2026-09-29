@@ -1,15 +1,16 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, JoinRequest } from '../models';
+import { COLOUR_THEMES, ColourTheme, Group, GroupRequest, JoinRequest } from '../models';
 
 type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
 
 @Component({
   selector: 'app-groups',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './groups.html',
   styleUrl: './groups.css',
 })
@@ -21,6 +22,63 @@ export class Groups {
   protected readonly myRequests = signal<JoinRequest[]>([]);
   protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly errorMessage = signal('');
+
+  // "Request a new group" form. The super admin creates the group if they approve it,
+  // and the requester becomes its first admin.
+  protected readonly colourThemes = COLOUR_THEMES;
+  protected readonly showRequestForm = signal(false);
+  protected readonly newGroupName = signal('');
+  protected readonly newGroupDescription = signal('');
+  protected readonly newGroupAgeLimit = signal(0);
+  protected readonly newGroupColour = signal<ColourTheme>('Blue');
+  protected readonly requestError = signal('');
+  protected readonly requestSuccess = signal('');
+  protected readonly requestSending = signal(false);
+
+  toggleRequestForm() {
+    this.showRequestForm.update((v) => !v);
+    this.requestError.set('');
+    this.requestSuccess.set('');
+  }
+
+  submitGroupRequest() {
+    const name = this.newGroupName().trim();
+    const ageLimit = Number(this.newGroupAgeLimit());
+    this.requestError.set('');
+    this.requestSuccess.set('');
+
+    if (!name) {
+      this.requestError.set('Please give the group a name.');
+      return;
+    }
+    if (!Number.isInteger(ageLimit) || ageLimit < 0 || ageLimit > 120) {
+      this.requestError.set('Age limit must be a whole number from 0 to 120.');
+      return;
+    }
+
+    this.requestSending.set(true);
+    this.http
+      .post<GroupRequest>(`${API_URL}/group-requests`, {
+        name,
+        description: this.newGroupDescription().trim(),
+        ageLimit,
+        colourTheme: this.newGroupColour(),
+      })
+      .subscribe({
+        next: (request) => {
+          this.requestSending.set(false);
+          this.requestSuccess.set(`Request for "${request.name}" sent to the super admin.`);
+          this.newGroupName.set('');
+          this.newGroupDescription.set('');
+          this.newGroupAgeLimit.set(0);
+          this.newGroupColour.set('Blue');
+        },
+        error: (err) => {
+          this.requestSending.set(false);
+          this.requestError.set(err.error?.message ?? 'Unable to send that request.');
+        },
+      });
+  }
 
   ngOnInit() {
     this.loadGroups();

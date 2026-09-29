@@ -1,6 +1,58 @@
 <div class="page-title-bar">
     <span>Groups</span>
-    <button type="button" class="back-btn" routerLink="/chat">&lt;</button>
+    <button type="button" class="back-btn" routerLink="/chat" aria-label="Back to chat">&lt;</button>
+</div>
+
+<div class="card groups-card request-card">
+    <div class="card-body">
+        <button
+            type="button"
+            class="btn btn-outline-dark w-100"
+            [attr.aria-expanded]="showRequestForm()"
+            aria-controls="group-request-form"
+            (click)="toggleRequestForm()"
+        >
+            {{ showRequestForm() ? 'Cancel' : 'Request a new group' }}
+        </button>
+
+        @if (requestSuccess()) {
+            <div class="alert alert-success mt-2 mb-0" role="status">{{ requestSuccess() }}</div>
+        }
+
+        @if (showRequestForm()) {
+            <form id="group-request-form" class="request-form" (ngSubmit)="submitGroupRequest()">
+                <p class="form-hint">The super admin reviews each request. If it's approved, you become the group's admin.</p>
+                <div class="form-field">
+                    <label for="newGroupName" class="form-label">Group name</label>
+                    <input id="newGroupName" name="newGroupName" type="text" class="form-control" maxlength="60" required [(ngModel)]="newGroupName">
+                </div>
+                <div class="form-field">
+                    <label for="newGroupDescription" class="form-label">Description</label>
+                    <textarea id="newGroupDescription" name="newGroupDescription" class="form-control" rows="2" maxlength="300" [(ngModel)]="newGroupDescription"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="newGroupAgeLimit" class="form-label">Minimum age</label>
+                        <input id="newGroupAgeLimit" name="newGroupAgeLimit" type="number" class="form-control" min="0" max="120" step="1" [(ngModel)]="newGroupAgeLimit">
+                    </div>
+                    <div class="form-field">
+                        <label for="newGroupColour" class="form-label">Colour theme</label>
+                        <select id="newGroupColour" name="newGroupColour" class="form-control" [(ngModel)]="newGroupColour">
+                            @for (theme of colourThemes; track theme) {
+                                <option [ngValue]="theme">{{ theme }}</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                @if (requestError()) {
+                    <div class="alert alert-danger" role="alert">{{ requestError() }}</div>
+                }
+                <button type="submit" class="btn btn-dark w-100" [disabled]="requestSending()">
+                    {{ requestSending() ? 'Sending…' : 'Send request' }}
+                </button>
+            </form>
+        }
+    </div>
 </div>
 
 <div class="card groups-card">
