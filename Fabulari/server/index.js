@@ -581,6 +581,39 @@ function initializeRoutes(app, db) {
     res.json({ request: { ...request, ...changes }, room });
   });
 
+  // Admins can fix a room's name or description (e.g. a typo from the original request).
+  app.put('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, async (req, res) => {
+    const room = await rooms.findOne({ id: Number(req.params.roomId), groupId: req.group.id }, NO_ID);
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    const { name, description } = req.body;
+    const changes = {};
+    if (name !== undefined) {
+      if (!isText(name)) return res.status(400).json({ message: 'A room name is required' });
+      const trimmed = name.trim();
+      const clash = await rooms.findOne(
+        { groupId: req.group.id, name: trimmed, id: { $ne: room.id } },
+        { collation: CASE_INSENSITIVE },
+      );
+      if (clash) return res.status(409).json({ message: 'This group already has a room with that name' });
+      changes.name = trimmed;
+    }
+    if (description !== undefined) {
+      if (typeof description !== 'string') return res.status(400).json({ message: 'Description must be text' });
+      changes.description = description.trim();
+    }
+
+    if (Object.keys(changes).length) {
+      await rooms.updateOne({ id: room.id }, { $set: changes });
+      const renamed = changes.name && changes.name !== room.name ? ` (renamed from "${room.name}")` : '';
+      await audit('ROOM_UPDATED', req.user, `Edited the room "${changes.name ?? room.name}" in "${req.group.name}"${renamed}`, {
+        type: 'room',
+        id: room.id,
+      });
+    }
+    res.json({ ...room, ...changes });
+  });
+
   app.delete('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, async (req, res) => {
     const roomId = Number(req.params.roomId);
     const room = await rooms.findOne({ id: roomId, groupId: req.group.id });

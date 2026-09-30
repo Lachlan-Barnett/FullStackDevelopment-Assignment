@@ -134,10 +134,22 @@
     <div class="card-body">
       <div class="panel-title">Channels</div>
       @for (room of rooms(); track room.id) {
-        <div class="room-row">
-          <span class="room-name">{{ room.name }} &mdash; {{ room.description }}</span>
-          <button type="button" class="btn btn-sm btn-outline-danger" (click)="deleteRoom(room)">Delete</button>
-        </div>
+        @if (editingRoomId() === room.id) {
+          <form class="room-edit-form" (ngSubmit)="saveRoom(room)">
+            <label class="visually-hidden" [attr.for]="'room-name-' + room.id">Room name</label>
+            <input [id]="'room-name-' + room.id" name="editRoomName" type="text" class="form-control form-control-sm" maxlength="40" [(ngModel)]="editRoomName">
+            <label class="visually-hidden" [attr.for]="'room-desc-' + room.id">Room description</label>
+            <input [id]="'room-desc-' + room.id" name="editRoomDescription" type="text" class="form-control form-control-sm" maxlength="200" placeholder="Description" [(ngModel)]="editRoomDescription">
+            <button type="submit" class="btn btn-sm btn-dark">Save</button>
+            <button type="button" class="btn btn-sm btn-outline-dark" (click)="cancelEditRoom()">Cancel</button>
+          </form>
+        } @else {
+          <div class="room-row">
+            <span class="room-name">{{ room.name }}{{ room.description ? ' — ' + room.description : '' }}</span>
+            <button type="button" class="btn btn-sm btn-outline-dark" [attr.aria-label]="'Edit ' + room.name" (click)="startEditRoom(room)">Edit</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Delete ' + room.name" (click)="deleteRoom(room)">Delete</button>
+          </div>
+        }
       } @empty {
         <p class="empty-note">No channels yet.</p>
       }

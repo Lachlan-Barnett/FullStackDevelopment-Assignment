@@ -6,7 +6,7 @@ import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { BannedMember, Group, JoinRequest, Report, RoomRequest, User } from '../models';
+import { BannedMember, Group, JoinRequest, Report, Room, RoomRequest, User } from '../models';
 
 describe('GroupAdminDashboard', () => {
   let fixture: ComponentFixture<GroupAdminDashboard>;
@@ -57,11 +57,11 @@ describe('GroupAdminDashboard', () => {
   const buttonIn = (root: Element, text: string) =>
     [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 
-  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report], banned: BannedMember[] = []) {
+  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report], banned: BannedMember[] = [], roomList: Room[] = []) {
     fixture = TestBed.createComponent(GroupAdminDashboard);
     fixture.detectChanges();
     http.expectOne(`${API_URL}/groups/1`).flush(group);
-    http.expectOne(`${API_URL}/groups/1/rooms`).flush([]);
+    http.expectOne(`${API_URL}/groups/1/rooms`).flush(roomList);
     http.expectOne(`${API_URL}/groups/1/room-requests`).flush(roomRequests);
     http.expectOne(`${API_URL}/groups/1/join-requests`).flush(joins);
     http.expectOne(`${API_URL}/groups/1/delete-requests`).flush(deletes);
@@ -190,6 +190,78 @@ describe('GroupAdminDashboard', () => {
       http.expectOne(`${API_URL}/groups/1/join-requests`).flush([joinRequest]);
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('That user no longer meets the group age limit');
+    });
+  });
+
+  describe('editing channels', () => {
+    const start: Room = { id: 1, groupId: 1, name: 'strat', description: 'typo' };
+    const load = () => loadPage([], [], [], [], [start]);
+    const editButton = () => panel('Channels').querySelector<HTMLButtonElement>('button[aria-label="Edit strat"]')!;
+    async function type(id: string, value: string) {
+      const input = panel('Channels').querySelector<HTMLInputElement>(`#${id}`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      await settle();
+    }
+
+    it('opens an inline form filled with the current values', async () => {
+      await load();
+      editButton().click();
+      await settle();
+      expect(panel('Channels').querySelector<HTMLInputElement>('#room-name-1')!.value).toBe('strat');
+      expect(panel('Channels').querySelector<HTMLInputElement>('#room-desc-1')!.value).toBe('typo');
+    });
+
+    it('saves the new name and description', async () => {
+      await load();
+      editButton().click();
+      await settle();
+      await type('room-name-1', ' start ');
+      await type('room-desc-1', 'fixed');
+      panel('Channels').querySelector('form')!.dispatchEvent(new Event('submit'));
+      const put = http.expectOne(`${API_URL}/groups/1/rooms/1`);
+      expect(put.request.method).toBe('PUT');
+      expect(put.request.body).toEqual({ name: 'start', description: 'fixed' });
+      put.flush({ ...start, name: 'start', description: 'fixed' });
+      http.expectOne(`${API_URL}/groups/1/rooms`).flush([{ ...start, name: 'start', description: 'fixed' }]);
+      await settle();
+      expect(panel('Channels').querySelector('form')).toBeNull();
+      expect(panel('Channels').textContent).toContain('start — fixed');
+    });
+
+    it('cancel closes the form without saving', async () => {
+      await load();
+      editButton().click();
+      await settle();
+      buttonIn(panel('Channels'), 'Cancel').click();
+      await settle();
+      expect(panel('Channels').querySelector('form')).toBeNull();
+      http.expectNone(`${API_URL}/groups/1/rooms/1`);
+    });
+
+    it('needs a name', async () => {
+      await load();
+      editButton().click();
+      await settle();
+      await type('room-name-1', '  ');
+      panel('Channels').querySelector('form')!.dispatchEvent(new Event('submit'));
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('A room name is required.');
+      http.expectNone(`${API_URL}/groups/1/rooms/1`);
+    });
+
+    it('shows the server error, e.g. a duplicate name', async () => {
+      await load();
+      editButton().click();
+      await settle();
+      await type('room-name-1', 'memes');
+      panel('Channels').querySelector('form')!.dispatchEvent(new Event('submit'));
+      http
+        .expectOne(`${API_URL}/groups/1/rooms/1`)
+        .flush({ message: 'This group already has a room with that name' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('already has a room with that name');
+      expect(panel('Channels').querySelector('form')).not.toBeNull();
     });
   });
 

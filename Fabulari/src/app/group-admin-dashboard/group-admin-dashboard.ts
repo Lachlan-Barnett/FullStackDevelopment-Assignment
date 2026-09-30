@@ -261,6 +261,43 @@ export class GroupAdminDashboard {
     return request.requestedBy === this.currentUserId();
   }
 
+  // Inline editing of one channel at a time.
+  protected readonly editingRoomId = signal<number | null>(null);
+  protected readonly editRoomName = signal('');
+  protected readonly editRoomDescription = signal('');
+
+  startEditRoom(room: Room) {
+    this.errorMessage.set('');
+    this.editingRoomId.set(room.id);
+    this.editRoomName.set(room.name);
+    this.editRoomDescription.set(room.description);
+  }
+
+  cancelEditRoom() {
+    this.editingRoomId.set(null);
+  }
+
+  saveRoom(room: Room) {
+    const group = this.group();
+    if (!group) return;
+    const name = this.editRoomName().trim();
+    if (!name) {
+      this.errorMessage.set('A room name is required.');
+      return;
+    }
+
+    this.errorMessage.set('');
+    this.http
+      .put<Room>(`${API_URL}/groups/${group.id}/rooms/${room.id}`, { name, description: this.editRoomDescription().trim() })
+      .subscribe({
+        next: () => {
+          this.editingRoomId.set(null);
+          this.loadRooms(group.id);
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to save that channel.'),
+      });
+  }
+
   deleteRoom(room: Room) {
     const group = this.group();
     if (!group) return;
