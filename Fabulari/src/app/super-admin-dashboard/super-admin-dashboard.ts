@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { API_URL } from '../api.config';
@@ -8,7 +9,7 @@ import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, SystemBanReques
 
 @Component({
   selector: 'app-super-admin-dashboard',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, DatePipe],
   templateUrl: './super-admin-dashboard.html',
   styleUrl: './super-admin-dashboard.css',
 })
@@ -21,7 +22,11 @@ export class SuperAdminDashboard {
   protected readonly users = signal<User[]>([]);
   protected readonly errorMessage = signal('');
 
+  // Audit log with a type filter ("" = all types) and newest/oldest ordering.
   protected readonly auditLog = signal<AuditLogEntry[]>([]);
+  protected readonly auditTypes = signal<string[]>([]);
+  protected readonly auditType = signal('');
+  protected readonly auditOrder = signal<'newest' | 'oldest'>('newest');
 
   protected readonly groupRequests = signal<GroupRequest[]>([]);
   protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
@@ -36,6 +41,30 @@ export class SuperAdminDashboard {
     this.loadGroupRequests();
     this.loadDeleteRequests();
     this.loadRemovalRequests();
+    this.loadAuditLog();
+  }
+
+  loadAuditLog() {
+    const params: Record<string, string> = { order: this.auditOrder() };
+    if (this.auditType()) params['type'] = this.auditType();
+    this.http
+      .get<{ types: string[]; entries: AuditLogEntry[] }>(`${API_URL}/admin/audit-log`, { params })
+      .subscribe({
+        next: ({ types, entries }) => {
+          this.auditTypes.set(types);
+          this.auditLog.set(entries);
+        },
+      });
+  }
+
+  setAuditType(type: string) {
+    this.auditType.set(type);
+    this.loadAuditLog();
+  }
+
+  toggleAuditOrder() {
+    this.auditOrder.update((o) => (o === 'newest' ? 'oldest' : 'newest'));
+    this.loadAuditLog();
   }
 
   private loadRemovalRequests() {
@@ -62,6 +91,7 @@ export class SuperAdminDashboard {
         next: () => {
           delete this.removalRejectReasons[request.id];
           this.loadRemovalRequests();
+          this.loadAuditLog();
           if (approve) {
             this.loadUsers();
             this.loadGroups();
@@ -91,6 +121,7 @@ export class SuperAdminDashboard {
         next: () => {
           delete this.deleteRejectReasons[request.id];
           this.loadDeleteRequests();
+          this.loadAuditLog();
           if (approve) this.loadGroups();
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
@@ -139,6 +170,7 @@ export class SuperAdminDashboard {
         next: () => {
           delete this.rejectReasons[request.id];
           this.loadGroupRequests();
+          this.loadAuditLog();
           if (approve) this.loadGroups();
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),

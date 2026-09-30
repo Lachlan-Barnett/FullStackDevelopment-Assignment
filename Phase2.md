@@ -119,7 +119,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-36 | Super admin approves or rejects group requests; never creates groups directly. | ✅ | The direct "create group" route from Phase 1 was removed. |
 | FR-37 | Super admin approves group deletions requested by a group admin. | ✅ | Approval removes the group with its rooms, messages, images and pending requests. |
 | FR-38 | Super admin bans/deletes users at a group admin's request; banned emails can't be reused. | ✅ | **User Removal Requests** panel. Approving deletes the account, removes it from every group, deletes its photo and pending requests, records a system ban and blocks the email (case-insensitive) from signing up again. Refused while the user is the only admin of any group — another admin must be promoted first. |
-| FR-39 | Audit log, filterable by type, in date order. | ⏳ | Planned. |
+| FR-39 | Audit log, filterable by type, in date order. | ✅ | Every request and decision is recorded (20 kinds of event — see [Audit log types](#audit-log-types)). The super admin's **Audit Log** panel filters by type and switches between newest and oldest first. Names are stored with each entry, so the log still reads correctly after an account or group is deleted. |
 | FR-40 | The super admin does not chat. | ✅ | Blocked on the server (join requests and socket events) and in the UI (the super admin lands on their dashboard). |
 
 ### Other decisions
@@ -227,6 +227,34 @@ Common errors: `400` invalid input · `401` not logged in / session expired · `
 | GET | `/admin/system-ban-requests` | Super admin | — | Pending removal requests: `{ id, userId, username, email, groupId, groupName, reportId, reason, requestedBy, requesterName, ... }`. |
 | PUT | `/admin/system-ban-requests/:requestId` | Super admin | `{ approve: boolean, reason? }` | The updated request. Approving deletes the user and bans their email. `409` if the user is the only admin of a group (the message names the groups), or already actioned. |
 
+### Audit log
+
+| Method | Endpoint | Access | Body | Response |
+|---|---|---|---|---|
+| GET | `/admin/audit-log?type=&order=` | Super admin | — | `{ types: string[], entries: AuditLogEntry[] }`. `type` filters to one kind of entry; `order` is `newest` (default) or `oldest`. Up to 500 entries. |
+
+#### Audit log types
+
+| Type | Recorded when |
+|---|---|
+| `USER_SIGNED_UP` | Someone creates an account |
+| `JOIN_REQUESTED` / `JOIN_AUTO_REJECTED` | A user asks to join a group (auto-rejected if under the age limit) |
+| `JOIN_APPROVED` / `JOIN_REJECTED` | A group admin decides a join request |
+| `GROUP_REQUESTED` | A user asks for a new group |
+| `GROUP_CREATED` / `GROUP_REQUEST_REJECTED` | The super admin decides a group request |
+| `GROUP_UPDATED` | A group admin changes description, age limit or colour |
+| `MEMBERS_REMOVED_AGE_LIMIT` | A raised age limit removes members |
+| `MEMBER_PROMOTED` / `ADMIN_DEMOTED` | A group admin changes someone's role |
+| `ROOM_REQUESTED` | A member asks for a new room |
+| `ROOM_CREATED` / `ROOM_REJECTED` | A group admin decides a room request |
+| `ROOM_DELETED` | A group admin deletes a room |
+| `REPORT_FILED` | A user reports someone |
+| `USER_BANNED_FROM_GROUP` / `REPORT_DISMISSED` | A group admin acts on a report |
+| `REMOVAL_REQUESTED` | A group admin asks the super admin to remove a user |
+| `USER_REMOVED` / `REMOVAL_REJECTED` | The super admin decides a removal request |
+| `GROUP_DELETE_REQUESTED` | A group admin asks for their group to be deleted |
+| `GROUP_DELETED` / `GROUP_DELETE_REJECTED` | The super admin decides a deletion request |
+
 ### Messages and images
 
 | Method | Endpoint | Access | Body | Response |
@@ -279,6 +307,7 @@ Database `fabulari`. Every document has a numeric `id` (generated from the `coun
 | `bans` | `id, userId, scope ("group" or "system"), groupId, reportId, issuedBy, createdAt` |
 | `systemBanRequests` | `id, userId, username, email, groupId, groupName, reportId, reason, requestedBy, status, rejectionReason, reviewedBy, createdAt` |
 | `bannedEmails` | `email (unique, case-insensitive), userId, bannedAt` |
+| `auditLog` | `id, type, actorId, actorName, targetType, targetId, details, timestamp` |
 | `counters` | `_id` (collection name), `seq` |
 
 ### Server files
@@ -316,7 +345,7 @@ The client is an Angular 22 standalone-component app. State is held in **signals
 | `ChangeBirthdate` | `/change-birthdate` | New birthdate. |
 | `Report` | `/report` | Report a member of one of your groups. |
 | `GroupAdminDashboard` | `/admin/group/:groupId` | Edit group details; approve/reject join requests; review reports (ban, ask the super admin to remove the user, or dismiss); members with promote/demote; banned members; channels; approve/reject channel requests; request group deletion. |
-| `SuperAdminDashboard` | `/admin/super` | Approve/reject group requests, group deletion requests and user removal requests; all groups; all users; audit log (planned); Settings and Logout. |
+| `SuperAdminDashboard` | `/admin/super` | Approve/reject group requests, group deletion requests and user removal requests; all groups; all users; audit log with type filter and newest/oldest order; Settings and Logout. |
 
 ### Services
 
@@ -347,7 +376,7 @@ The client is an Angular 22 standalone-component app. State is held in **signals
 | `JoinRequest`, `GroupRequest`, `RoomRequest`, `GroupDeleteRequest`, `SystemBanRequest` | Share `id, status, rejectionReason, reviewedBy, createdAt`. |
 | `Report` | `id, reportedUserId, reportedBy, groupId, reason, status, reviewedBy, createdAt`, plus `reporterName` / `reportedName` for admins |
 | `ColourTheme`, `COLOUR_THEMES`, `THEME_TINTS` | `'Blue' \| 'Yellow' \| 'Red'` and their chat tints. |
-| `AuditLogEntry` | `type, details, timestamp` (planned feature). |
+| `AuditLogEntry` | `id, type, actorId, actorName, targetType, targetId, details, timestamp` |
 
 `src/app/api.config.ts` holds the server address (`SERVER_URL`, `API_URL`, `SOCKET_URL`).
 
@@ -372,7 +401,7 @@ The Phase 1 wireframes still describe the layout; the screenshots below show the
 
 ![Group admin dashboard](Images/Phase2-Group-Admin-Dashboard.png)
 
-**Super admin dashboard** (new): group requests, group deletion requests, user removal requests, all groups, all users and the audit log.
+**Super admin dashboard** (new): group requests, group deletion requests, user removal requests, all groups, all users and the audit log (filter by type, newest or oldest first).
 
 ![Super admin dashboard](Images/Phase2-Super-Admin-Dashboard.png)
 
@@ -396,7 +425,7 @@ Testing approach: every change is checked with the unit tests and a production b
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
-### Automated unit tests (100 tests, all passing)
+### Automated unit tests (105 tests, all passing)
 
 | Area | File | Tests |
 |---|---|---|
@@ -407,7 +436,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | My Requests | `my-requests.spec.ts` | Lists pending requests of every kind with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
 | Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows initial and "Add photo" · uploads a PNG and shows the photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
 | Group admin dashboard | `group-admin-dashboard.spec.ts` | **Group details:** warns about the age limit · saves and names anyone removed · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · **join requests:** lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
-| Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists group requests · approves a group request · lists deletion requests with reasons · deletes after confirming · cancelling does nothing · rejects without confirming · **user removal:** lists who, email, requester, group and report · removes after confirming and refreshes users and groups · cancelling does nothing · shows the "only admin" error |
+| Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists group requests · approves a group request · lists deletion requests with reasons · deletes after confirming · cancelling does nothing · rejects without confirming · **user removal:** lists who, email, requester, group and report · removes after confirming and refreshes users and groups · cancelling does nothing · shows the "only admin" error · **audit log:** lists type, who and what · offers every type in the filter · filters by type · switches newest/oldest first · refreshes after the super admin acts |
 | Guards | `group-admin.guard.spec.ts`, `not-super-admin.guard.spec.ts` | Admin allowed · member redirected · missing group redirected · logged-out redirected without a server call · normal users allowed · super admin redirected to the dashboard |
 | Other pages | `login`, `signup`, `report`, `change-password`, `change-username`, `change-birthdate` | Each page is created |
 
@@ -423,6 +452,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Super admin | 7 | Can't join groups or chat, even if added to a group directly |
 | Group deletion | 22 | Permissions, one pending request, reject, approve removes everything |
 | User removal | 24 | Escalating a report, permissions, one pending per user, approve deletes the account and photo and blocks login, old tokens and the email (any case), reject, only-admin protection, super admin can't be removed |
+| Audit log | 27 | Super admin only, a full journey logs every step with names and readable details, newest/oldest order, type filter, auto-rejections, names survive account deletion, removals logged |
 | Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
 | Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
 | Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
@@ -445,4 +475,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 100 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 105 unit tests plus scripted API, socket and browser checks |

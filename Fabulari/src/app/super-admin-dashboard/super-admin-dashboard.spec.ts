@@ -26,6 +26,11 @@ describe('SuperAdminDashboard', () => {
     reason: 'spamming', requestedBy: 2, requesterName: 'user1', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '',
   };
 
+  const auditEntries = [
+    { id: 2, type: 'GROUP_CREATED', actorId: 1, actorName: 'admin', targetType: 'group', targetId: 2, details: 'Approved and created the group "Chess"', timestamp: '2026-09-30T03:00:00.000Z' },
+    { id: 1, type: 'USER_SIGNED_UP', actorId: 4, actorName: 'carol', targetType: 'user', targetId: 4, details: 'carol (c@t.com) created an account', timestamp: '2026-09-30T02:00:00.000Z' },
+  ];
+
   const el = () => fixture.nativeElement as HTMLElement;
   const settle = async () => {
     await fixture.whenStable();
@@ -55,6 +60,7 @@ describe('SuperAdminDashboard', () => {
     http.expectOne(`${API_URL}/admin/group-requests`).flush([groupRequest]);
     http.expectOne(`${API_URL}/admin/group-delete-requests`).flush([deleteRequest]);
     http.expectOne(`${API_URL}/admin/system-ban-requests`).flush([removal]);
+    http.expectOne(`${API_URL}/admin/audit-log?order=newest`).flush({ types: ['GROUP_CREATED', 'USER_SIGNED_UP'], entries: auditEntries });
     await settle();
   });
 
@@ -134,6 +140,47 @@ describe('SuperAdminDashboard', () => {
         .flush({ message: 'user2 is the only admin of "games". Another admin must be promoted first.' }, { status: 409, statusText: 'Conflict' });
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('only admin of "games"');
+    });
+  });
+
+  describe('audit log', () => {
+    it('lists entries with type, who and what', () => {
+      const entries = [...panel('Audit Log').querySelectorAll('.audit-entry')].map((e) => e.textContent?.replace(/\s+/g, ' ') ?? '');
+      expect(entries.length).toBe(2);
+      expect(entries[0]).toContain('GROUP_CREATED');
+      expect(entries[0]).toContain('admin: Approved and created the group "Chess"');
+      expect(entries[1]).toContain('carol: carol (c@t.com) created an account');
+    });
+
+    it('offers every type in the filter', () => {
+      const options = [...panel('Audit Log').querySelectorAll('#auditType option')].map((o) => o.textContent?.trim());
+      expect(options).toEqual(['All types', 'GROUP_CREATED', 'USER_SIGNED_UP']);
+    });
+
+    it('filters by type', async () => {
+      const select = panel('Audit Log').querySelector<HTMLSelectElement>('#auditType')!;
+      select.value = 'USER_SIGNED_UP';
+      select.dispatchEvent(new Event('change'));
+      await settle();
+      http.expectOne(`${API_URL}/admin/audit-log?order=newest&type=USER_SIGNED_UP`).flush({ types: [], entries: [auditEntries[1]] });
+      await settle();
+      expect(panel('Audit Log').querySelectorAll('.audit-entry').length).toBe(1);
+    });
+
+    it('switches between newest and oldest first', async () => {
+      buttonIn(panel('Audit Log'), 'Newest first').click();
+      await settle();
+      http.expectOne(`${API_URL}/admin/audit-log?order=oldest`).flush({ types: [], entries: [...auditEntries].reverse() });
+      await settle();
+      expect(buttonIn(panel('Audit Log'), 'Oldest first')).toBeDefined();
+      expect(panel('Audit Log').querySelector('.audit-entry')?.textContent).toContain('USER_SIGNED_UP');
+    });
+
+    it('refreshes after the super admin acts', () => {
+      buttonIn(panel('Group Requests'), 'Approve').click();
+      http.expectOne(`${API_URL}/admin/group-requests/1`).flush({});
+      http.expectOne(`${API_URL}/admin/group-requests`).flush([]);
+      http.expectOne(`${API_URL}/admin/audit-log?order=newest`).flush({ types: [], entries: [] });
     });
   });
 });

@@ -1,5 +1,11 @@
+// One entry in the super admin's audit log (GET /admin/audit-log).
 export interface AuditLogEntry {
-  type: string;
+  id: number;
+  type: string; // e.g. "GROUP_CREATED", "USER_BANNED_FROM_GROUP"
+  actorId: number | null;
+  actorName: string | null; // stored with the entry, so it survives the account being deleted
+  targetType: string | null;
+  targetId: number | null;
   details: string;
   timestamp: string;
 }

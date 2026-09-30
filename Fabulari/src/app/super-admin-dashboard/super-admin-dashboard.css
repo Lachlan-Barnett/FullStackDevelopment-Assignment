@@ -111,3 +111,44 @@
   display: flex;
   gap: 0.5rem;
 }
+
+.audit-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.audit-controls .form-label {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.audit-controls select {
+  max-width: 16rem;
+}
+
+.audit-entry {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.audit-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.audit-type {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.audit-details {
+  font-size: 0.85rem;
+  word-break: break-word;
+}

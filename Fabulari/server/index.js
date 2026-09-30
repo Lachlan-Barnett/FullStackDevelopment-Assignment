@@ -50,6 +50,7 @@ function initializeRoutes(app, db) {
   const bans = db.collection('bans');
   const systemBanRequests = db.collection('systemBanRequests');
   const bannedEmails = db.collection('bannedEmails');
+  const auditLog = db.collection('auditLog');
 
   const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
     createAuth(db);
@@ -60,6 +61,21 @@ function initializeRoutes(app, db) {
     const found = await users.find({ id: { $in: ids } }, { projection: { _id: 0, id: 1, username: 1 } }).toArray();
     const names = new Map(found.map((u) => [u.id, u.username]));
     return items.map((i) => ({ ...i, [nameField]: names.get(i[idField]) ?? null }));
+  }
+
+  // Records an entry in the super admin's audit log. Names are stored with the entry so the log still
+  // reads correctly after an account or group is deleted.
+  async function audit(type, actor, details, target = {}) {
+    await auditLog.insertOne({
+      id: await nextId(db, 'auditLog'),
+      type,
+      actorId: actor?.id ?? null,
+      actorName: actor?.username ?? null,
+      targetType: target.type ?? null, // "user", "group", "room", "report"...
+      targetId: target.id ?? null,
+      details,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   app.post('/api/auth', async (req, res) => {
@@ -103,6 +119,7 @@ function initializeRoutes(app, db) {
       profilePhoto: null,
     };
     await users.insertOne(user);
+    await audit('USER_SIGNED_UP', user, `${username} (${email}) created an account`, { type: 'user', id: user.id });
 
     res.json({ valid: true, token: signToken(user), ...publicUser(user) });
   });
@@ -201,6 +218,7 @@ function initializeRoutes(app, db) {
       createdAt: new Date().toISOString(),
     };
     await groupRequests.insertOne({ ...request });
+    await audit('GROUP_REQUESTED', req.user, `Requested a new group "${request.name}"`, { type: 'groupRequest', id: request.id });
     res.json(request);
   });
 
@@ -223,6 +241,12 @@ function initializeRoutes(app, db) {
     if (!approve) {
       const changes = { status: 'rejected', reviewedBy: req.user.id, rejectionReason: req.body.reason?.trim() || null };
       await groupRequests.updateOne({ id: request.id }, { $set: changes });
+      await audit(
+        'GROUP_REQUEST_REJECTED',
+        req.user,
+        `Rejected the request for "${request.name}"${changes.rejectionReason ? `: ${changes.rejectionReason}` : ''}`,
+        { type: 'groupRequest', id: request.id },
+      );
       return res.json({ ...request, ...changes });
     }
 
@@ -245,6 +269,7 @@ function initializeRoutes(app, db) {
 
     const changes = { status: 'approved', reviewedBy: req.user.id };
     await groupRequests.updateOne({ id: request.id }, { $set: changes });
+    await audit('GROUP_CREATED', req.user, `Approved and created the group "${group.name}"`, { type: 'group', id: group.id });
     res.json({ request: { ...request, ...changes }, group });
   });
 
@@ -310,6 +335,19 @@ function initializeRoutes(app, db) {
       }
     }
 
+    if (Object.keys(changes).length) {
+      const fields = Object.entries(changes).map(([k, v]) => `${k}: ${v}`).join(', ');
+      await audit('GROUP_UPDATED', req.user, `Updated "${req.group.name}" (${fields})`, { type: 'group', id: req.group.id });
+    }
+    if (removed.length) {
+      await audit(
+        'MEMBERS_REMOVED_AGE_LIMIT',
+        req.user,
+        `Age limit ${changes.ageLimit} removed ${removed.map((u) => u.username).join(', ')} from "${req.group.name}"`,
+        { type: 'group', id: req.group.id },
+      );
+    }
+
     const updated = await groups.findOne({ id: req.group.id }, NO_ID);
     res.json({
       ...groupFor(updated, req.user.id),
@@ -355,6 +393,14 @@ function initializeRoutes(app, db) {
       createdAt: new Date().toISOString(),
     };
     await joinRequests.insertOne({ ...request });
+    await audit(
+      underAge ? 'JOIN_AUTO_REJECTED' : 'JOIN_REQUESTED',
+      req.user,
+      underAge
+        ? `Asked to join "${group.name}" — rejected automatically (under ${group.ageLimit})`
+        : `Asked to join "${group.name}"`,
+      { type: 'group', id: group.id },
+    );
     res.json(request);
   });
 
@@ -389,6 +435,15 @@ function initializeRoutes(app, db) {
     }
 
     await joinRequests.updateOne({ id: request.id }, { $set: changes });
+    const who = applicant?.username ?? `User #${request.userId}`;
+    await audit(
+      approve ? 'JOIN_APPROVED' : 'JOIN_REJECTED',
+      req.user,
+      approve
+        ? `Let ${who} join "${group.name}"`
+        : `Turned down ${who}'s request to join "${group.name}"${changes.rejectionReason ? `: ${changes.rejectionReason}` : ''}`,
+      { type: 'user', id: request.userId },
+    );
     res.json({ ...request, ...changes });
   });
 
@@ -407,6 +462,15 @@ function initializeRoutes(app, db) {
     }
 
     await groups.updateOne({ id: group.id, 'members.userId': userId }, { $set: { 'members.$.role': newRole } });
+    if (member.role !== newRole) {
+      const who = (await users.findOne({ id: userId }))?.username ?? `User #${userId}`;
+      await audit(
+        newRole === 'admin' ? 'MEMBER_PROMOTED' : 'ADMIN_DEMOTED',
+        req.user,
+        `${newRole === 'admin' ? 'Made' : 'Removed'} ${who} ${newRole === 'admin' ? 'an admin of' : 'as an admin of'} "${group.name}"`,
+        { type: 'user', id: userId },
+      );
+    }
     res.json(groupFor(await groups.findOne({ id: group.id }, NO_ID), req.user.id));
   });
 
@@ -440,6 +504,10 @@ function initializeRoutes(app, db) {
       createdAt: new Date().toISOString(),
     };
     await roomRequests.insertOne({ ...request });
+    await audit('ROOM_REQUESTED', req.user, `Requested the room "${request.name}" in "${req.group.name}"`, {
+      type: 'roomRequest',
+      id: request.id,
+    });
     res.json(request);
   });
 
@@ -468,6 +536,10 @@ function initializeRoutes(app, db) {
       if (!reason) return res.status(400).json({ message: 'A reason is required to reject a room request' });
       const changes = { status: 'rejected', rejectionReason: reason, reviewedBy: req.user.id };
       await roomRequests.updateOne({ id: request.id }, { $set: changes });
+      await audit('ROOM_REJECTED', req.user, `Rejected the room "${request.name}" in "${req.group.name}": ${reason}`, {
+        type: 'roomRequest',
+        id: request.id,
+      });
       return res.json({ ...request, ...changes });
     }
 
@@ -486,17 +558,23 @@ function initializeRoutes(app, db) {
 
     const changes = { status: 'approved', reviewedBy: req.user.id };
     await roomRequests.updateOne({ id: request.id }, { $set: changes });
+    await audit('ROOM_CREATED', req.user, `Approved and created the room "${room.name}" in "${req.group.name}"`, {
+      type: 'room',
+      id: room.id,
+    });
     res.json({ request: { ...request, ...changes }, room });
   });
 
   app.delete('/api/groups/:groupId/rooms/:roomId', requireGroupAdmin, async (req, res) => {
     const roomId = Number(req.params.roomId);
-    const result = await rooms.deleteOne({ id: roomId, groupId: req.group.id });
-    if (!result.deletedCount) return res.status(404).json({ message: 'Room not found' });
+    const room = await rooms.findOne({ id: roomId, groupId: req.group.id });
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+    await rooms.deleteOne({ id: roomId });
 
     const images = await messages.find({ roomId, type: 'image' }, { projection: { content: 1 } }).toArray();
     await messages.deleteMany({ roomId });
     await deleteUploads(images.map((m) => m.content));
+    await audit('ROOM_DELETED', req.user, `Deleted the room "${room.name}" from "${req.group.name}"`, { type: 'room', id: roomId });
     res.json({ deleted: true });
   });
 
@@ -569,6 +647,15 @@ function initializeRoutes(app, db) {
 
     const changes = { status: action === 'ban' ? 'actioned' : 'dismissed', reviewedBy: req.user.id };
     await reports.updateOne({ id: report.id }, { $set: changes });
+    const who = (await users.findOne({ id: report.reportedUserId }))?.username ?? `User #${report.reportedUserId}`;
+    await audit(
+      action === 'ban' ? 'USER_BANNED_FROM_GROUP' : 'REPORT_DISMISSED',
+      req.user,
+      action === 'ban'
+        ? `Banned ${who} from "${group.name}" (report: ${report.reason})`
+        : `Dismissed the report about ${who} in "${group.name}"`,
+      { type: 'user', id: report.reportedUserId },
+    );
     res.json({ ...report, ...changes });
   });
 
@@ -628,6 +715,10 @@ function initializeRoutes(app, db) {
     };
     await systemBanRequests.insertOne({ ...request });
     await reports.updateOne({ id: report.id }, { $set: { status: 'escalated', reviewedBy: req.user.id } });
+    await audit('REMOVAL_REQUESTED', req.user, `Asked the super admin to remove ${target.username} from Fabulari (report: ${report.reason})`, {
+      type: 'user',
+      id: target.id,
+    });
     res.json(request);
   });
 
@@ -645,6 +736,12 @@ function initializeRoutes(app, db) {
     if (!approve) {
       const changes = { status: 'rejected', rejectionReason: req.body.reason?.trim() || null, reviewedBy: req.user.id };
       await systemBanRequests.updateOne({ id: request.id }, { $set: changes });
+      await audit(
+        'REMOVAL_REJECTED',
+        req.user,
+        `Kept ${request.username} (${request.email})${changes.rejectionReason ? `: ${changes.rejectionReason}` : ''}`,
+        { type: 'user', id: request.userId },
+      );
       return res.json({ ...request, ...changes });
     }
 
@@ -685,7 +782,21 @@ function initializeRoutes(app, db) {
 
     const changes = { status: 'approved', reviewedBy: req.user.id };
     await systemBanRequests.updateOne({ id: request.id }, { $set: changes });
+    await audit('USER_REMOVED', req.user, `Removed ${request.username} (${request.email}) from Fabulari and banned the email`, {
+      type: 'user',
+      id: request.userId,
+    });
     res.json({ ...request, ...changes });
+  });
+
+  // The super admin's audit log. ?type= filters to one kind of entry; ?order=oldest reverses the default
+  // newest-first order. The response also lists every type seen so far, for the filter dropdown.
+  app.get('/api/admin/audit-log', requireSuperAdmin, async (req, res) => {
+    const filter = typeof req.query.type === 'string' && req.query.type ? { type: req.query.type } : {};
+    const direction = req.query.order === 'oldest' ? 1 : -1;
+    const entries = await auditLog.find(filter, NO_ID).sort({ timestamp: direction, id: direction }).limit(500).toArray();
+    const types = (await auditLog.distinct('type')).sort();
+    res.json({ types, entries });
   });
 
   // Group deletion: a group admin asks, the super admin decides. Groups are never deleted directly.
@@ -707,6 +818,10 @@ function initializeRoutes(app, db) {
       createdAt: new Date().toISOString(),
     };
     await groupDeleteRequests.insertOne({ ...request });
+    await audit('GROUP_DELETE_REQUESTED', req.user, `Asked to delete "${group.name}"${request.reason ? `: ${request.reason}` : ''}`, {
+      type: 'group',
+      id: group.id,
+    });
     res.json(request);
   });
 
@@ -744,6 +859,14 @@ function initializeRoutes(app, db) {
     }
 
     await groupDeleteRequests.updateOne({ id: request.id }, { $set: changes });
+    await audit(
+      approve ? 'GROUP_DELETED' : 'GROUP_DELETE_REJECTED',
+      req.user,
+      approve
+        ? `Deleted the group "${request.groupName}"`
+        : `Kept the group "${request.groupName}"${changes.rejectionReason ? `: ${changes.rejectionReason}` : ''}`,
+      { type: 'group', id: request.groupId },
+    );
     res.json({ ...request, ...changes });
   });
 
@@ -777,6 +900,10 @@ function initializeRoutes(app, db) {
       createdAt: new Date().toISOString(),
     };
     await reports.insertOne({ ...report });
+    await audit('REPORT_FILED', req.user, `Reported ${reported.username} in "${group.name}": ${report.reason}`, {
+      type: 'user',
+      id: reported.id,
+    });
     res.json(report);
   });
 

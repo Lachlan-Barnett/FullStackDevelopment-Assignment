@@ -127,13 +127,28 @@
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">Audit Log</div>
-      @for (entry of auditLog(); track entry.timestamp + entry.type) {
-        <div class="field-box">
-          <strong>{{ entry.type }}</strong> &mdash; {{ entry.details }}
-          <span class="log-date">{{ entry.timestamp }}</span>
+      <div class="audit-controls">
+        <label for="auditType" class="form-label">Type</label>
+        <select id="auditType" class="form-control form-control-sm" [ngModel]="auditType()" (ngModelChange)="setAuditType($event)">
+          <option value="">All types</option>
+          @for (type of auditTypes(); track type) {
+            <option [value]="type">{{ type }}</option>
+          }
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-dark" (click)="toggleAuditOrder()">
+          {{ auditOrder() === 'newest' ? 'Newest first' : 'Oldest first' }}
+        </button>
+      </div>
+      @for (entry of auditLog(); track entry.id) {
+        <div class="audit-entry">
+          <div class="audit-top">
+            <span class="audit-type">{{ entry.type }}</span>
+            <time class="log-date" [attr.datetime]="entry.timestamp">{{ entry.timestamp | date: 'd MMM y, h:mm:ss a' }}</time>
+          </div>
+          <div class="audit-details"><strong>{{ entry.actorName ?? 'System' }}</strong>: {{ entry.details }}</div>
         </div>
       } @empty {
-        <p class="empty-note">No audit entries yet.</p>
+        <p class="empty-note">No audit entries{{ auditType() ? ' of this type' : '' }} yet.</p>
       }
     </div>
   </div>

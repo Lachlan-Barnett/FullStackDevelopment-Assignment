@@ -24,9 +24,10 @@ async function createIndexes(db) {
   await db.collection('rooms').createIndex({ groupId: 1 });
   await db.collection('messages').createIndex({ id: 1 }, { unique: true });
   await db.collection('messages').createIndex({ roomId: 1, id: -1 });
+  await db.collection('auditLog').createIndex({ type: 1, timestamp: -1 });
   // Emails of users removed from the system; they can never sign up again.
   await db.collection('bannedEmails').createIndex({ email: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
-  for (const name of ['reports', 'joinRequests', 'groupRequests', 'roomRequests', 'groupDeleteRequests', 'bans', 'systemBanRequests']) {
+  for (const name of ['reports', 'joinRequests', 'groupRequests', 'roomRequests', 'groupDeleteRequests', 'bans', 'systemBanRequests', 'auditLog']) {
     await db.collection(name).createIndex({ id: 1 }, { unique: true });
   }
 }
