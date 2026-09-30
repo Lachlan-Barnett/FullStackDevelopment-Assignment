@@ -446,11 +446,10 @@ The login, signup, groups, change password and change username pages keep their 
 |---|---|---|
 | **Unit / component tests** (automated, in the repo) | Vitest through Angular's unit-test builder, jsdom, Angular `TestBed`, `HttpTestingController` | Components render the right things and send the right HTTP requests; guards; the socket service (with a fake socket). No server needed. Run with `npx ng test --watch=false`. |
 | **Server API and socket tests** (automated, in the repo) | Node's built-in test runner (`node:test`) with `assert`, `fetch` and `socket.io-client` | Each test file starts the real Express + Socket.IO server on a free port against a separate MongoDB database (`fabulari_test`) and uploads folder, re-seeded before every scenario. Scenarios call the real endpoints and socket events and check status codes, responses, database contents and files on disk. Every check is reported by name. Run with `npm test` in `Fabulari/server`. |
-| **Layout checks** (scripted) | Puppeteer at desktop and tablet screen sizes | Key controls stay on screen and pages don't scroll sideways. |
-| **Accessibility audit** (scripted) | axe-core run by Puppeteer in headless Chrome | Every page, light and dark mode, WCAG 2.0/2.1 A and AA rules. |
-| **End-to-end tests** (scripted) | Puppeteer driving headless Chrome against `ng serve` + the server | Real user flows across two browser sessions: chatting, images, profile photos, joining a group, requesting a room, super admin routing. ⏳ To be added to the repo. |
+| **End-to-end tests** | Cypress | ⏳ To be added: real user flows through the running app in a browser. |
+| **Development browser checks** (not in the repo) | Puppeteer driving headless Chrome, with axe-core for accessibility | Used while building to confirm key flows, layouts at desktop and tablet sizes, and WCAG accessibility in a real browser. Results are listed below; the repeatable end-to-end suite will be the Cypress tests. |
 
-Testing approach: every change is checked with the unit tests and a production build, and server changes are checked with the automated server test suite (`npm test`). End-to-end runs confirm key flows in a real browser, and caught bugs that the unit tests missed (for example, the message box not clearing after sending).
+Testing approach: every change is checked with the unit tests and a production build, and server changes are checked with the automated server test suite (`npm test`). Browser runs during development confirmed key flows in a real browser and caught bugs the unit tests missed (for example, the message box not clearing after sending).
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
@@ -500,7 +499,9 @@ Files are in `Fabulari/server/test/`. The shared set-up is `helpers.js`.
 
 The suite was also checked the other way: temporarily breaking the PNG check made exactly the two related checks fail.
 
-### Browser checks (scripted)
+### Development browser checks (Puppeteer, not in the repo)
+
+These were run in headless Chrome during development. They are recorded here as evidence of what was checked; the automated end-to-end suite will be written in Cypress.
 
 | Check | Count | Covers |
 |---|---|---|
@@ -525,4 +526,4 @@ The suite was also checked the other way: temporarily breaking the PNG check mad
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 117 Angular unit tests, 424 automated server checks, plus scripted browser, layout and accessibility checks |
+| Tests | Broken starter specs | 117 Angular unit tests, 424 automated server checks, plus development browser checks (Cypress end-to-end tests to come) |
