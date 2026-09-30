@@ -8,7 +8,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { ChatSocketService } from '../services/chat-socket.service';
 import { API_URL, SERVER_URL } from '../api.config';
-import { Group, GroupMemberDetails, Message, PresentUser, Room, THEME_TINTS } from '../models';
+import { Group, GroupMemberDetails, Message, PresentUser, Room, RoomRequest, THEME_TINTS } from '../models';
 
 // Client limits for image messages: PNG only, at most 2MB. The server checks these again.
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -56,6 +56,14 @@ export class Chat {
   protected readonly present = signal<PresentUser[]>([]);
   protected readonly chatError = signal('');
   protected readonly uploading = signal(false);
+
+  // "Request room" form: members propose a room for the selected group; an admin approves or rejects it.
+  protected readonly showRoomRequest = signal(false);
+  protected readonly roomRequestName = signal('');
+  protected readonly roomRequestDescription = signal('');
+  protected readonly roomRequestError = signal('');
+  protected readonly roomRequestSuccess = signal('');
+  protected readonly roomRequestSending = signal(false);
   protected readonly draft = signal('');
 
   private readonly messageList = viewChild<ElementRef<HTMLElement>>('messageList');
@@ -156,7 +164,50 @@ export class Chat {
     });
   }
 
+  toggleRoomRequest() {
+    this.showRoomRequest.update((v) => !v);
+    this.roomRequestError.set('');
+    this.roomRequestSuccess.set('');
+  }
+
+  submitRoomRequest() {
+    const group = this.selectedGroup();
+    const name = this.roomRequestName().trim();
+    this.roomRequestError.set('');
+    this.roomRequestSuccess.set('');
+    if (!group) return;
+    if (!name) {
+      this.roomRequestError.set('Please give the room a name.');
+      return;
+    }
+
+    this.roomRequestSending.set(true);
+    this.http
+      .post<RoomRequest>(`${API_URL}/groups/${group.id}/room-requests`, {
+        name,
+        description: this.roomRequestDescription().trim(),
+      })
+      .subscribe({
+        next: (request) => {
+          this.roomRequestSending.set(false);
+          this.roomRequestSuccess.set(`Request for "${request.name}" sent to the ${group.name} admins.`);
+          this.roomRequestName.set('');
+          this.roomRequestDescription.set('');
+          this.showRoomRequest.set(false);
+        },
+        error: (err) => {
+          this.roomRequestSending.set(false);
+          this.roomRequestError.set(errorMessage(err, 'Unable to send that request.'));
+        },
+      });
+  }
+
   selectGroup(id: number) {
+    // The form and its messages belong to the previous group.
+    this.showRoomRequest.set(false);
+    this.roomRequestError.set('');
+    this.roomRequestSuccess.set('');
+
     this.selectedGroupId.set(id);
     this.members.set([]);
     this.rooms.set([]);

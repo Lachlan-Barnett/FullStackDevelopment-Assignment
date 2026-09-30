@@ -220,6 +220,67 @@ describe('Chat', () => {
     });
   });
 
+  describe('requesting a room', () => {
+    const el = () => fixture.nativeElement as HTMLElement;
+    const requestButton = () => el().querySelector<HTMLButtonElement>('.request-room-btn')!;
+    async function fill(id: string, value: string) {
+      const input = el().querySelector<HTMLInputElement>(`#${id}`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+      await settle();
+    }
+    async function submit() {
+      el().querySelector('form.room-request-form')!.dispatchEvent(new Event('submit'));
+      await settle();
+    }
+
+    beforeEach(async () => {
+      await loadPage();
+      requestButton().click();
+      await settle();
+    });
+
+    it('opens a labelled form for the selected group', () => {
+      expect(el().textContent).toContain('Request a new room in help');
+      expect(el().querySelector('label[for=roomRequestName]')).not.toBeNull();
+      expect(requestButton().textContent?.trim()).toBe('Cancel');
+      expect(requestButton().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('sends the request to the group and confirms', async () => {
+      await fill('roomRequestName', '  memes  ');
+      await fill('roomRequestDescription', 'funny stuff');
+      await submit();
+
+      const req = http.expectOne(`${API_URL}/groups/1/room-requests`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ name: 'memes', description: 'funny stuff' });
+      req.flush({ id: 3, name: 'memes' });
+      await settle();
+
+      expect(el().textContent).toContain('Request for "memes" sent to the help admins.');
+      expect(el().querySelector('form.room-request-form')).toBeNull();
+      expect(requestButton().textContent?.trim()).toBe('Request room');
+    });
+
+    it('needs a name', async () => {
+      await submit();
+      expect(el().textContent).toContain('Please give the room a name.');
+      http.expectNone(`${API_URL}/groups/1/room-requests`);
+    });
+
+    it('shows the server error and keeps the form open', async () => {
+      await fill('roomRequestName', 'start');
+      await submit();
+      http
+        .expectOne(`${API_URL}/groups/1/room-requests`)
+        .flush({ message: 'This group already has a room with that name' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(el().textContent).toContain('This group already has a room with that name');
+      expect(el().querySelector<HTMLInputElement>('#roomRequestName')!.value).toBe('start');
+    });
+  });
+
   it('leaves the old room when switching rooms', async () => {
     await loadPage();
     (fixture.componentInstance as unknown as { selectRoom(id: number): void }).selectRoom(2);

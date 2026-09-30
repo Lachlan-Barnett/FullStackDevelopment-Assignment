@@ -37,12 +37,50 @@
         } @empty {
           <p class="empty-note">No rooms in this group yet.</p>
         }
+        @if (selectedGroup()) {
+          <button
+            type="button"
+            class="list-btn request-room-btn"
+            aria-controls="room-request-form"
+            [attr.aria-expanded]="showRoomRequest()"
+            (click)="toggleRoomRequest()"
+          >
+            {{ showRoomRequest() ? 'Cancel' : 'Request room' }}
+          </button>
+        }
       </aside>
     }
 
     <main class="messages-col">
       @if (isGroupAdmin()) {
         <button type="button" class="admin-link" [routerLink]="['/admin/group', selectedGroup()?.id]">Manage Group &gt;</button>
+      }
+
+      @if (roomRequestSuccess()) {
+        <div class="alert alert-success room-request-alert" role="status">{{ roomRequestSuccess() }}</div>
+      }
+
+      @if (showRoomRequest() && selectedGroup(); as group) {
+        <form id="room-request-form" class="room-request-form" (ngSubmit)="submitRoomRequest()">
+          <div class="room-request-title">Request a new room in {{ group.name }}</div>
+          <div class="room-request-fields">
+            <div class="room-request-field">
+              <label for="roomRequestName" class="form-label">Room name</label>
+              <input id="roomRequestName" name="roomRequestName" type="text" class="form-control form-control-sm" maxlength="40" [(ngModel)]="roomRequestName">
+            </div>
+            <div class="room-request-field grow">
+              <label for="roomRequestDescription" class="form-label">Description (optional)</label>
+              <input id="roomRequestDescription" name="roomRequestDescription" type="text" class="form-control form-control-sm" maxlength="200" [(ngModel)]="roomRequestDescription">
+            </div>
+            <button type="submit" class="btn btn-sm btn-dark" [disabled]="roomRequestSending()">
+              {{ roomRequestSending() ? 'Sending…' : 'Send request' }}
+            </button>
+          </div>
+          <p class="room-request-hint">A group admin will approve or reject it. Rejections come with a reason.</p>
+          @if (roomRequestError()) {
+            <div class="alert alert-danger py-1 mb-0" role="alert">{{ roomRequestError() }}</div>
+          }
+        </form>
       }
 
       @if (selectedRoom(); as room) {
@@ -59,7 +97,7 @@
         </div>
       }
 
-      <div class="messages-list" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
+      <div class="messages-list" [class.compact]="showRoomRequest()" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
         @for (item of feed(); track item.key) {
           @if (item.kind === 'notice') {
             <div class="notice">{{ item.text }}</div>

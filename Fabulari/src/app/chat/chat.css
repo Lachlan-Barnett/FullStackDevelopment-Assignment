@@ -303,3 +303,62 @@ cursor: pointer;
   font-weight: 700;
   color: #1e4620;
 }
+
+.request-room-btn {
+  font-size: 0.85rem;
+}
+
+/* Leave room for the request form above the messages so the message box stays on screen. */
+.messages-list.compact {
+  height: 48vh;
+}
+
+.room-request-form {
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.room-request-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.room-request-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.room-request-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.room-request-field.grow {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.room-request-field .form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.room-request-hint {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0;
+}
+
+.room-request-alert {
+  margin: 0.5rem 0 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
