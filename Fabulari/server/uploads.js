@@ -3,7 +3,8 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
+// Tests point this at a separate folder so they never touch real uploads.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 const UPLOADS_URL = '/uploads';
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // client limit: files under 2MB
 

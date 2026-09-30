@@ -5,3 +5,6 @@ dist/
 
 # Images uploaded to the chat server at runtime
 Fabulari/server/uploads/
+
+# Uploads made by the server test suite
+Fabulari/server/test-uploads/

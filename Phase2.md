@@ -48,7 +48,14 @@ npx ng serve      # then open http://localhost:4200
 
 **Configuration** (optional environment variables for the server): `MONGO_URL`, `DB_NAME` (default `fabulari`), `PORT` (default `3000`), `JWT_SECRET` (a development default is used if unset).
 
-**Tests:** `cd Fabulari && npx ng test --watch=false` runs the Angular unit tests (see [Testing](#5-testing)).
+**Tests** (see [Testing](#5-testing)):
+
+```bash
+cd Fabulari && npx ng test --watch=false   # Angular unit tests
+cd Fabulari/server && npm test              # server API + socket tests (needs MongoDB running)
+```
+
+The server tests use their own database (`fabulari_test`) and uploads folder (`server/test-uploads`), so they never touch the demo data.
 
 ---
 
@@ -438,12 +445,12 @@ The login, signup, groups, change password and change username pages keep their 
 | Level | Tools | What it covers |
 |---|---|---|
 | **Unit / component tests** (automated, in the repo) | Vitest through Angular's unit-test builder, jsdom, Angular `TestBed`, `HttpTestingController` | Components render the right things and send the right HTTP requests; guards; the socket service (with a fake socket). No server needed. Run with `npx ng test --watch=false`. |
-| **API and socket tests** (scripted) | Node scripts using `fetch` and `socket.io-client` against the real server and a freshly seeded MongoDB | Every endpoint's success and error cases, permissions, and socket behaviour (presence, history, images, photos, deletions). ⏳ Being moved into the repo as an automated test suite. |
+| **Server API and socket tests** (automated, in the repo) | Node's built-in test runner (`node:test`) with `assert`, `fetch` and `socket.io-client` | Each test file starts the real Express + Socket.IO server on a free port against a separate MongoDB database (`fabulari_test`) and uploads folder, re-seeded before every scenario. Scenarios call the real endpoints and socket events and check status codes, responses, database contents and files on disk. Every check is reported by name. Run with `npm test` in `Fabulari/server`. |
 | **Layout checks** (scripted) | Puppeteer at desktop and tablet screen sizes | Key controls stay on screen and pages don't scroll sideways. |
 | **Accessibility audit** (scripted) | axe-core run by Puppeteer in headless Chrome | Every page, light and dark mode, WCAG 2.0/2.1 A and AA rules. |
 | **End-to-end tests** (scripted) | Puppeteer driving headless Chrome against `ng serve` + the server | Real user flows across two browser sessions: chatting, images, profile photos, joining a group, requesting a room, super admin routing. ⏳ To be added to the repo. |
 
-Testing approach: every change is checked with the unit tests and a production build, and server changes are checked against the running server with the scripted API tests. End-to-end runs confirm key flows in a real browser, and caught bugs that the unit tests missed (for example, the message box not clearing after sending).
+Testing approach: every change is checked with the unit tests and a production build, and server changes are checked with the automated server test suite (`npm test`). End-to-end runs confirm key flows in a real browser, and caught bugs that the unit tests missed (for example, the message box not clearing after sending).
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
@@ -463,24 +470,40 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Change password | `change-password.spec.ts` | Every field and checkbox has a unique id and its own label · each "Show" checkbox reveals only its own field · clicking a "Show" label toggles that checkbox only |
 | Other pages | `login`, `signup`, `report`, `change-username`, `change-birthdate` | Each page is created |
 
-### Scripted API and socket checks
+### Automated server tests (424 checks in 21 scenarios, all passing)
 
-| Script | Checks | Covers |
+Files are in `Fabulari/server/test/`. The shared set-up is `helpers.js`.
+
+| File | Scenario | Checks |
 |---|---|---|
-| REST regression | 96 | Login, signup, hashing, tokens, permissions on every route, password change, colours, members, reports, join/group/room requests, roles, non-text credentials |
-| Sockets | 29 | Token check, join rules, presence (including two tabs), message validation, leave and disconnect |
-| History | 17 | Only the last 5 messages kept per room, order, rejoining, deletion with the room |
-| Images | 24 | Real PNG accepted, renamed JPEG rejected, 2MB limit, permissions, serving headers, cleanup |
-| Profile photos | 22 | Upload, validation, permissions, photo on messages and history, changing and removing |
-| Super admin | 7 | Can't join groups or chat, even if added to a group directly |
-| Group deletion | 22 | Permissions, one pending request, reject, approve removes everything |
-| User removal | 24 | Escalating a report, permissions, one pending per user, approve deletes the account and photo and blocks login, old tokens and the email (any case), reject, only-admin protection, super admin can't be removed |
-| Room editing | 11 | Admin only, blank/non-text/duplicate names refused, case change of own name allowed, members see the new name, chat keeps working, audited with the old name |
-| Leave group | 11 | Non-members refused, only admin refused, leaving removes access to rooms and chat, rejoin allowed, audited, admin can leave when another admin exists |
-| Audit log | 27 | Super admin only, a full journey logs every step with names and readable details, newest/oldest order, type filter, auto-rejections, names survive account deletion, removals logged |
-| Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
-| Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
-| Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
+| `auth-and-users.test.js` | Login, signup and password hashing (bcrypt, no hashes returned, non-text credentials refused) | 17 |
+| | Changing password (typed twice, must match, current password checked) | 7 |
+| | Login tokens and access control (no/invalid token, own account only, admin-only routes, colours, members list) | 12 |
+| `requests-and-roles.test.js` | Join requests and the age limit (auto-reject under age, approve, duplicates) | 14 |
+| | New group requests (super admin approval, duplicates, colours, requester becomes admin) | 18 |
+| | Room requests and deleting rooms (reason required to reject, no self-approval) | 20 |
+| | Promoting and demoting admins (always one admin) | 6 |
+| | Filing reports | 4 |
+| `chat-sockets.test.js` | Socket connections, rooms, presence and messages (token check, two tabs, validation, leave/disconnect) | 29 |
+| | Only the last 5 messages per room are kept | 12 |
+| | The super admin does not chat (even if added to a group directly) | 7 |
+| `images-and-photos.test.js` | Image messages (real PNG only, 2MB limit, serving headers, file cleanup) | 27 |
+| | Profile photos (upload, validation, shown on messages and history, change, remove) | 24 |
+| `moderation.test.js` | Group deletion requests (everything in the group removed) | 28 |
+| | Reports and group bans (ban effects, private ban list, no self-review, admins can't be banned) | 32 |
+| | Banned members list | 16 |
+| | Removing a user from Fabulari (email banned in any case, only-admin protection, super admin protected) | 42 |
+| `group-admin.test.js` | Raising the age limit removes under-age members | 33 |
+| | Audit log (a full journey is recorded; filter; order; names survive deletion) | 43 |
+| | Leaving a group | 16 |
+| | Editing a room | 17 |
+
+The suite was also checked the other way: temporarily breaking the PNG check made exactly the two related checks fail.
+
+### Browser checks (scripted)
+
+| Check | Count | Covers |
+|---|---|---|
 | Layout (Chrome at 5 screen sizes) | 70 | Message box, send, Request room and Manage Group on screen; message box stays visible with the request form or info panel open; no sideways scrolling on chat, groups, requests, settings, dashboard or change-password |
 | Accessibility audit (axe-core in Chrome) | 26 | All 13 pages in light and dark mode against WCAG 2.0/2.1 A and AA — no violations |
 | End-to-end (Chrome) | 45 | Chat 19 · photo 5 · super admin 8 · join 7 · request room 6 (including 2 on-screen layout checks) |
@@ -502,4 +525,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 117 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 117 Angular unit tests, 424 automated server checks, plus scripted browser, layout and accessibility checks |
