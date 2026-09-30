@@ -75,6 +75,7 @@
           } @else {
             <div class="request-actions">
               <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionReport(report, 'ban')">Ban from group</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="escalateReport(report)">Ask super admin to remove from Fabulari</button>
               <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionReport(report, 'dismiss')">Dismiss</button>
             </div>
           }

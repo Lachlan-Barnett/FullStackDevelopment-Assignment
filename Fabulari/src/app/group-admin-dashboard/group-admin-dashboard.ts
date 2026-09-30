@@ -160,6 +160,22 @@ export class GroupAdminDashboard {
     });
   }
 
+  // Asks the super admin to remove the reported user from Fabulari altogether.
+  escalateReport(report: Report) {
+    const group = this.group();
+    if (!group) return;
+    const name = report.reportedName ?? `User #${report.reportedUserId}`;
+    if (!confirm(`Ask the super admin to remove ${name} from Fabulari? If approved, their account is deleted for good.`)) {
+      return;
+    }
+
+    this.errorMessage.set('');
+    this.http.post(`${API_URL}/groups/${group.id}/reports/${report.id}/escalate`, {}).subscribe({
+      next: () => this.loadReports(group.id),
+      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to send that request.'),
+    });
+  }
+
   private loadDeleteRequests(groupId: number) {
     this.http.get<GroupDeleteRequest[]>(`${API_URL}/groups/${groupId}/delete-requests`).subscribe({
       next: (requests) => this.deleteRequests.set(requests),

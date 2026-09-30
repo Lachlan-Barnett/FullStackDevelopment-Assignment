@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { API_URL } from '../api.config';
 import { AuthService } from '../services/auth.service';
-import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, User } from '../models';
+import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, SystemBanRequest, User } from '../models';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -26,6 +26,8 @@ export class SuperAdminDashboard {
   protected readonly groupRequests = signal<GroupRequest[]>([]);
   protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
   protected deleteRejectReasons: Record<number, string> = {};
+  protected readonly removalRequests = signal<SystemBanRequest[]>([]);
+  protected removalRejectReasons: Record<number, string> = {};
   protected rejectReasons: Record<number, string> = {};
 
   ngOnInit() {
@@ -33,6 +35,40 @@ export class SuperAdminDashboard {
     this.loadUsers();
     this.loadGroupRequests();
     this.loadDeleteRequests();
+    this.loadRemovalRequests();
+  }
+
+  private loadRemovalRequests() {
+    this.http.get<SystemBanRequest[]>(`${API_URL}/admin/system-ban-requests`).subscribe({
+      next: (requests) => this.removalRequests.set(requests),
+    });
+  }
+
+  // Approving deletes the account for good and blocks the email from signing up again.
+  actionRemovalRequest(request: SystemBanRequest, approve: boolean) {
+    if (
+      approve &&
+      !confirm(`Permanently remove ${request.username} (${request.email}) from Fabulari? Their email can never be used again.`)
+    ) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.http
+      .put(`${API_URL}/admin/system-ban-requests/${request.id}`, {
+        approve,
+        reason: this.removalRejectReasons[request.id] ?? '',
+      })
+      .subscribe({
+        next: () => {
+          delete this.removalRejectReasons[request.id];
+          this.loadRemovalRequests();
+          if (approve) {
+            this.loadUsers();
+            this.loadGroups();
+          }
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
+      });
   }
 
   private loadDeleteRequests() {

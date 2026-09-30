@@ -72,6 +72,34 @@
 
   <div class="card panel">
     <div class="card-body">
+      <div class="panel-title">User Removal Requests</div>
+      @for (request of removalRequests(); track request.id) {
+        <div class="request-card">
+          <div class="request-header">
+            <span class="group-name">{{ request.username }} &mdash; {{ request.email }}</span>
+            <span class="group-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }} in {{ request.groupName }}</span>
+          </div>
+          <div class="group-meta">Report: {{ request.reason }}</div>
+          <div class="request-actions">
+            <input
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="Rejection reason (optional)"
+              [attr.aria-label]="'Rejection reason for removing ' + request.username"
+              [(ngModel)]="removalRejectReasons[request.id]"
+            >
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRemovalRequest(request, true)">Remove user</button>
+            <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionRemovalRequest(request, false)">Reject</button>
+          </div>
+        </div>
+      } @empty {
+        <p class="empty-note">No pending removal requests.</p>
+      }
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="card-body">
       <div class="panel-title">All Groups</div>
       @for (group of groups(); track group.id) {
         <div class="group-row">

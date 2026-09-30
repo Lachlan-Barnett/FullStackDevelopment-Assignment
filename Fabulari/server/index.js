@@ -48,6 +48,8 @@ function initializeRoutes(app, db) {
   const messages = db.collection('messages');
   const groupDeleteRequests = db.collection('groupDeleteRequests');
   const bans = db.collection('bans');
+  const systemBanRequests = db.collection('systemBanRequests');
+  const bannedEmails = db.collection('bannedEmails');
 
   const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
     createAuth(db);
@@ -83,6 +85,9 @@ function initializeRoutes(app, db) {
       return res.status(400).json({ valid: false, message: 'Email, username and password are required' });
     }
 
+    if (await bannedEmails.findOne({ email: email.trim() }, { collation: CASE_INSENSITIVE })) {
+      return res.status(403).json({ valid: false, message: 'This email address has been banned from Fabulari' });
+    }
     if (await users.findOne({ email })) {
       return res.status(409).json({ valid: false, message: 'Email already registered' });
     }
@@ -513,6 +518,100 @@ function initializeRoutes(app, db) {
     const changes = { status: action === 'ban' ? 'actioned' : 'dismissed', reviewedBy: req.user.id };
     await reports.updateOne({ id: report.id }, { $set: changes });
     res.json({ ...report, ...changes });
+  });
+
+  // A group admin can escalate a report: ask the super admin to remove the user from Fabulari entirely.
+  app.post('/api/groups/:groupId/reports/:reportId/escalate', requireGroupAdmin, async (req, res) => {
+    const group = req.group;
+    const report = await reports.findOne({ id: Number(req.params.reportId), groupId: group.id }, NO_ID);
+    if (!report) return res.status(404).json({ message: 'Report not found' });
+    if (report.status !== 'pending') return res.status(409).json({ message: 'Report already actioned' });
+    if (report.reportedBy === req.user.id) {
+      return res.status(403).json({ message: 'Another admin must review a report you filed' });
+    }
+
+    const target = await users.findOne({ id: report.reportedUserId }, NO_ID);
+    if (!target) return res.status(404).json({ message: 'That user no longer exists' });
+    if (target.role === 'superadmin') return res.status(403).json({ message: 'The super admin cannot be removed' });
+    if (await systemBanRequests.findOne({ userId: target.id, status: 'pending' })) {
+      return res.status(409).json({ message: 'A removal request for this user is already waiting' });
+    }
+
+    const request = {
+      id: await nextId(db, 'systemBanRequests'),
+      userId: target.id,
+      username: target.username, // kept for the record once the account is gone
+      email: target.email,
+      groupId: group.id,
+      groupName: group.name,
+      reportId: report.id,
+      reason: report.reason,
+      requestedBy: req.user.id,
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: new Date().toISOString(),
+    };
+    await systemBanRequests.insertOne({ ...request });
+    await reports.updateOne({ id: report.id }, { $set: { status: 'escalated', reviewedBy: req.user.id } });
+    res.json(request);
+  });
+
+  app.get('/api/admin/system-ban-requests', requireSuperAdmin, async (req, res) => {
+    const pending = await systemBanRequests.find({ status: 'pending' }, NO_ID).sort({ id: 1 }).toArray();
+    res.json(await withUsernames(pending, 'requestedBy', 'requesterName'));
+  });
+
+  app.put('/api/admin/system-ban-requests/:requestId', requireSuperAdmin, async (req, res) => {
+    const request = await systemBanRequests.findOne({ id: Number(req.params.requestId) }, NO_ID);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
+
+    const approve = req.body.approve === true;
+    if (!approve) {
+      const changes = { status: 'rejected', rejectionReason: req.body.reason?.trim() || null, reviewedBy: req.user.id };
+      await systemBanRequests.updateOne({ id: request.id }, { $set: changes });
+      return res.json({ ...request, ...changes });
+    }
+
+    const userId = request.userId;
+    // A group must always have an admin, so its only admin can't be removed until someone replaces them.
+    const soleAdminOf = (await groups.find({ 'members.userId': userId }, NO_ID).toArray()).filter((g) => {
+      const admins = g.members.filter((m) => m.role === 'admin');
+      return admins.length === 1 && admins[0].userId === userId;
+    });
+    if (soleAdminOf.length) {
+      const names = soleAdminOf.map((g) => `"${g.name}"`).join(', ');
+      return res.status(409).json({
+        message: `${request.username} is the only admin of ${names}. Another admin must be promoted first.`,
+      });
+    }
+
+    // Permanent removal: the account goes, the email is blocked for good.
+    await groups.updateMany({ 'members.userId': userId }, { $pull: { members: { userId } } });
+    await joinRequests.deleteMany({ userId, status: 'pending' });
+    await groupRequests.deleteMany({ requestedBy: userId, status: 'pending' });
+    await roomRequests.deleteMany({ requestedBy: userId, status: 'pending' });
+    await deleteAvatar(userId);
+    await users.deleteOne({ id: userId });
+    await bannedEmails.updateOne(
+      { email: request.email },
+      { $setOnInsert: { email: request.email, userId, bannedAt: new Date().toISOString() } },
+      { upsert: true, collation: CASE_INSENSITIVE },
+    );
+    await bans.insertOne({
+      id: await nextId(db, 'bans'),
+      userId,
+      scope: 'system',
+      groupId: null,
+      reportId: request.reportId,
+      issuedBy: req.user.id,
+      createdAt: new Date().toISOString(),
+    });
+
+    const changes = { status: 'approved', reviewedBy: req.user.id };
+    await systemBanRequests.updateOne({ id: request.id }, { $set: changes });
+    res.json({ ...request, ...changes });
   });
 
   // Group deletion: a group admin asks, the super admin decides. Groups are never deleted directly.

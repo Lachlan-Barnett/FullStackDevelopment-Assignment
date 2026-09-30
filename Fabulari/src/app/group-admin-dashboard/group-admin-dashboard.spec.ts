@@ -197,6 +197,18 @@ describe('GroupAdminDashboard', () => {
       http.expectNone(`${API_URL}/groups/1`);
     });
 
+    it('asks the super admin to remove the user after confirming', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      buttonIn(panel('Reports'), 'Ask super admin to remove from Fabulari').click();
+      const post = http.expectOne(`${API_URL}/groups/1/reports/8/escalate`);
+      expect(post.request.method).toBe('POST');
+      post.flush({});
+      http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
+      await settle();
+      expect(panel('Reports').textContent).toContain('No reports to review.');
+    });
+
     it('cannot act on a report you filed', async () => {
       await loadPage([], [], [{ ...report, reportedBy: 2, reporterName: 'user1' }]);
       expect(panel('Reports').textContent).toContain('another admin must review it');

@@ -42,3 +42,16 @@ export interface GroupDeleteRequest extends BaseRequest {
   requesterName?: string | null; // included when listed for the super admin
   reason: string;
 }
+
+// A group admin asking the super admin to remove a user from Fabulari (from a report).
+export interface SystemBanRequest extends BaseRequest {
+  userId: number;
+  username: string; // kept after the account is deleted
+  email: string;
+  groupId: number;
+  groupName: string;
+  reportId: number;
+  reason: string; // the report's reason
+  requestedBy: number;
+  requesterName?: string | null; // included when listed for the super admin
+}
