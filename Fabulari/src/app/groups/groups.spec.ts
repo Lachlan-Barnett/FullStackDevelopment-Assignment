@@ -93,6 +93,47 @@ describe('Groups', () => {
     });
   });
 
+  describe('leaving', () => {
+    const leaveButton = () =>
+      [...el().querySelectorAll('.group-row')][0].querySelector<HTMLButtonElement>('button[aria-label="Leave help"]')!;
+
+    it('shows a Leave button on groups you belong to', async () => {
+      await loadPage();
+      expect(leaveButton()).not.toBeNull();
+      expect([...el().querySelectorAll('.group-row')][2].querySelector('button[aria-label^="Leave"]')).toBeNull();
+    });
+
+    it('leaves after confirming and reloads the groups', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      leaveButton().click();
+      const del = http.expectOne(`${API_URL}/groups/1/membership`);
+      expect(del.request.method).toBe('DELETE');
+      del.flush({ left: true });
+      http.expectOne(`${API_URL}/groups`).flush([{ ...groups[0], members: [{ userId: 9, role: 'admin' }] }, groups[1], groups[2]]);
+      await settle();
+      expect([...el().querySelectorAll('.group-row')][0].textContent).toContain('Apply');
+    });
+
+    it('does nothing if cancelled', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      leaveButton().click();
+      http.expectNone(`${API_URL}/groups/1/membership`);
+    });
+
+    it('shows why the only admin cannot leave', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      leaveButton().click();
+      http
+        .expectOne(`${API_URL}/groups/1/membership`)
+        .flush({ message: 'You are the only admin. Promote another member first, or ask the super admin to delete the group.' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(el().textContent).toContain('You are the only admin.');
+    });
+  });
+
   describe('requesting a new group', () => {
     beforeEach(async () => {
       await loadPage();

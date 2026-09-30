@@ -76,9 +76,11 @@
                 @switch (status(group)) {
                     @case ('admin') {
                         <span class="admin-badge">Admin</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Leave ' + group.name" (click)="leave(group)">Leave</button>
                     }
                     @case ('member') {
                         <span class="member-badge">Member</span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Leave ' + group.name" (click)="leave(group)">Leave</button>
                     }
                     @case ('banned') {
                         <span class="banned-badge" title="You were banned from this group after a report">Banned</span>

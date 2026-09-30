@@ -117,6 +117,17 @@ export class Groups {
     return 'none';
   }
 
+  // Leaving is immediate; the server refuses if you are the group's only admin.
+  leave(group: Group) {
+    if (!confirm(`Leave "${group.name}"? You'll need to ask to join again to come back.`)) return;
+
+    this.errorMessage.set('');
+    this.http.delete(`${API_URL}/groups/${group.id}/membership`).subscribe({
+      next: () => this.loadGroups(),
+      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to leave that group.'),
+    });
+  }
+
   apply(group: Group) {
     const status = this.status(group);
     if (status !== 'none' && status !== 'rejected') return;

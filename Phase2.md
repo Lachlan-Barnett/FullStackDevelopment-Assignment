@@ -92,7 +92,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-19 | Users see who is in the room and get join/leave notifications. | ✅ | "In this room" list and "X joined / X left the room" notices. A user with two tabs open counts once. |
 | FR-20 | Private profile page with an optional photo; everything but email is editable. | ✅ | Settings page: change username, birthdate, password, and profile photo (PNG, 2MB). |
 | FR-21 | Messages show a timestamp and the sender's photo. | ✅ | Server timestamp shown in the viewer's local time; sender's current photo (or initial). |
-| FR-22 | Users can leave a group. | ⏳ | Planned. |
+| FR-22 | Users can leave a group. | ✅ | **Leave** button (with confirmation) on the Groups page for groups you belong to. Leaving doesn't affect your account, and you can ask to rejoin. A group's only admin can't leave until another admin is promoted (or the group is deleted). |
 
 ### Group Admin
 
@@ -119,7 +119,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-36 | Super admin approves or rejects group requests; never creates groups directly. | ✅ | The direct "create group" route from Phase 1 was removed. |
 | FR-37 | Super admin approves group deletions requested by a group admin. | ✅ | Approval removes the group with its rooms, messages, images and pending requests. |
 | FR-38 | Super admin bans/deletes users at a group admin's request; banned emails can't be reused. | ✅ | **User Removal Requests** panel. Approving deletes the account, removes it from every group, deletes its photo and pending requests, records a system ban and blocks the email (case-insensitive) from signing up again. Refused while the user is the only admin of any group — another admin must be promoted first. |
-| FR-39 | Audit log, filterable by type, in date order. | ✅ | Every request and decision is recorded (20 kinds of event — see [Audit log types](#audit-log-types)). The super admin's **Audit Log** panel filters by type and switches between newest and oldest first. Names are stored with each entry, so the log still reads correctly after an account or group is deleted. |
+| FR-39 | Audit log, filterable by type, in date order. | ✅ | Every request and decision is recorded (21 kinds of event — see [Audit log types](#audit-log-types)). The super admin's **Audit Log** panel filters by type and switches between newest and oldest first. Names are stored with each entry, so the log still reads correctly after an account or group is deleted. |
 | FR-40 | The super admin does not chat. | ✅ | Blocked on the server (join requests and socket events) and in the UI (the super admin lands on their dashboard). |
 
 ### Other decisions
@@ -180,6 +180,7 @@ Common errors: `400` invalid input · `401` not logged in / session expired · `
 | GET | `/groups/:groupId` | User | — | One group. `404` if missing. |
 | PUT | `/groups/:groupId` | Group admin | `{ description?, ageLimit?, colourTheme? }` | The updated group plus `removedMembers: [{ userId, username }]` — members removed because a raised age limit put them under it. `400` if the colour isn't Blue, Yellow or Red, or the age limit isn't a whole number from 0 to 120; `409` if the new age limit would leave the group with no admin. |
 | GET | `/groups/:groupId/members` | Member | — | `[{ userId, role, username }]` (no emails — profiles are private). |
+| DELETE | `/groups/:groupId/membership` | Member | — | `{ left: true }`. `409` if you are the group's only admin. |
 | PUT | `/groups/:groupId/members/:userId/role` | Group admin | `{ role: "admin" \| "member" }` | The updated group. `409` if it would leave the group with no admin. |
 
 ### Join requests
@@ -244,6 +245,7 @@ Common errors: `400` invalid input · `401` not logged in / session expired · `
 | `GROUP_CREATED` / `GROUP_REQUEST_REJECTED` | The super admin decides a group request |
 | `GROUP_UPDATED` | A group admin changes description, age limit or colour |
 | `MEMBERS_REMOVED_AGE_LIMIT` | A raised age limit removes members |
+| `GROUP_LEFT` | A member leaves a group |
 | `MEMBER_PROMOTED` / `ADMIN_DEMOTED` | A group admin changes someone's role |
 | `ROOM_REQUESTED` | A member asks for a new room |
 | `ROOM_CREATED` / `ROOM_REJECTED` | A group admin decides a room request |
@@ -337,7 +339,7 @@ The client is an Angular 22 standalone-component app. State is held in **signals
 | `Login` | `/` | Email/password login; sends the user to their home page (chat, or the dashboard for the super admin). |
 | `Signup` | `/signup` | Registration form. |
 | `Chat` | `/chat` | Main page: groups and rooms columns, live messages (text and images, timestamps, photos, admin badges), who's in the room, join/leave notices, send box with image attach, "Request room" form, and the group info panel (description, age limit, colour, members). |
-| `Groups` | `/groups` | All groups with Apply / Pending / Member / Admin / Banned state and rejection reasons; "Request a new group" form. |
+| `Groups` | `/groups` | All groups with Apply / Pending / Member / Admin / Banned state and rejection reasons; Leave button for your groups; "Request a new group" form. |
 | `MyRequests` | `/requests` | The user's pending and rejected requests of every kind. |
 | `Settings` | `/settings` | Profile (photo upload/remove, email, username, birthdate) and settings (dark mode, change password/username/birthdate, my requests, report). |
 | `ChangePassword` | `/change-password` | Current password + new password twice. |
@@ -425,14 +427,14 @@ Testing approach: every change is checked with the unit tests and a production b
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
-### Automated unit tests (105 tests, all passing)
+### Automated unit tests (109 tests, all passing)
 
 | Area | File | Tests |
 |---|---|---|
 | App | `app.spec.ts` | Creates the app · renders the logo · applies saved dark mode on start-up · light mode by default |
 | Chat | `chat.spec.ts` | Joins the first room and shows who is present · shows history from joining · shows live messages for the current room with an Admin badge · shows the sender's photo or initial · shows join and leave notices · sends the typed message and clears the box · shows the server error and keeps the text · **images:** uploads a PNG then sends it · refuses non-PNG files · refuses images over 2MB · shows upload errors · shows image messages · **requesting a room:** opens a labelled form · sends the request and confirms · needs a name · shows the server error · leaves the old room when switching · leaves the room when the page closes |
 | Chat socket service | `chat-socket.service.spec.ts` | Connects with the login token · opens only one connection · doesn't connect when logged out · join returns history and who's present · rejects a refused join · send returns the stored message · emits `room:leave` · passes incoming messages to `messages$` · turns joined/left events into `activity$` · disconnects on logout |
-| Groups | `groups.spec.ts` | Shows Admin, Pending, rejected reason and Apply · shows Banned with no Apply button · sends a join request and shows Pending · request form has labelled fields and the three colours · sends the group request and clears the form · needs a name · rejects a bad age limit · shows the server error |
+| Groups | `groups.spec.ts` | Shows Admin, Pending, rejected reason and Apply · shows Banned with no Apply button · **leaving:** Leave button only on your groups · leaves after confirming and reloads · cancelling does nothing · shows why the only admin can't leave · sends a join request and shows Pending · request form has labelled fields and the three colours · sends the group request and clears the form · needs a name · rejects a bad age limit · shows the server error |
 | My Requests | `my-requests.spec.ts` | Lists pending requests of every kind with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
 | Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows initial and "Add photo" · uploads a PNG and shows the photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
 | Group admin dashboard | `group-admin-dashboard.spec.ts` | **Group details:** warns about the age limit · saves and names anyone removed · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · **join requests:** lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
@@ -452,6 +454,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Super admin | 7 | Can't join groups or chat, even if added to a group directly |
 | Group deletion | 22 | Permissions, one pending request, reject, approve removes everything |
 | User removal | 24 | Escalating a report, permissions, one pending per user, approve deletes the account and photo and blocks login, old tokens and the email (any case), reject, only-admin protection, super admin can't be removed |
+| Leave group | 11 | Non-members refused, only admin refused, leaving removes access to rooms and chat, rejoin allowed, audited, admin can leave when another admin exists |
 | Audit log | 27 | Super admin only, a full journey logs every step with names and readable details, newest/oldest order, type filter, auto-rejections, names survive account deletion, removals logged |
 | Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
 | Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
@@ -475,4 +478,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 105 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 109 unit tests plus scripted API, socket and browser checks |

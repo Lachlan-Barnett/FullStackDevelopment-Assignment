@@ -360,6 +360,22 @@ function initializeRoutes(app, db) {
     res.json(await withUsernames(req.group.members, 'userId', 'username'));
   });
 
+  // Leaving is immediate. The only admin can't leave, because a group must always have an admin.
+  app.delete('/api/groups/:groupId/membership', requireGroupMember, async (req, res) => {
+    const group = req.group;
+    const me = group.members.find((m) => m.userId === req.user.id);
+    const otherAdmins = group.members.filter((m) => m.role === 'admin' && m.userId !== req.user.id);
+    if (me.role === 'admin' && otherAdmins.length === 0) {
+      return res.status(409).json({
+        message: 'You are the only admin. Promote another member first, or ask the super admin to delete the group.',
+      });
+    }
+
+    await groups.updateOne({ id: group.id }, { $pull: { members: { userId: req.user.id } } });
+    await audit('GROUP_LEFT', req.user, `Left "${group.name}"`, { type: 'group', id: group.id });
+    res.json({ left: true });
+  });
+
   // Joining is a request the group admin approves. Users under the age limit are rejected straight away.
   app.post('/api/groups/:groupId/join-requests', async (req, res) => {
     // The super admin runs the system but doesn't take part in groups or chat.
