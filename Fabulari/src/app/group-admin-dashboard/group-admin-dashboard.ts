@@ -24,6 +24,7 @@ export class GroupAdminDashboard {
   protected readonly rooms = signal<Room[]>([]);
   protected readonly users = signal<User[]>([]);
   protected readonly errorMessage = signal('');
+  protected readonly saveNotice = signal('');
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};
@@ -94,15 +95,29 @@ export class GroupAdminDashboard {
     const group = this.group();
     if (!group) return;
 
+    this.errorMessage.set('');
+    this.saveNotice.set('');
     this.http
-      .put<Group>(`${API_URL}/groups/${group.id}`, {
+      .put<Group & { removedMembers: { userId: number; username: string }[] }>(`${API_URL}/groups/${group.id}`, {
         description: this.editDescription,
         ageLimit: this.editAgeLimit,
         colourTheme: this.editColourTheme,
       })
       .subscribe({
-        next: (updated) => this.group.set(updated),
-        error: () => this.errorMessage.set('Unable to update the group.'),
+        next: ({ removedMembers, ...updated }) => {
+          // Raising the age limit can remove the admin themselves; then they can't manage the group any more.
+          if (removedMembers.some((m) => m.userId === this.currentUserId())) {
+            this.router.navigateByUrl('/chat');
+            return;
+          }
+          this.group.set(updated);
+          this.saveNotice.set(
+            removedMembers.length
+              ? `Saved. Removed ${removedMembers.length} member(s) under the new age limit: ${removedMembers.map((m) => m.username).join(', ')}.`
+              : 'Saved.',
+          );
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to update the group.'),
       });
   }
 

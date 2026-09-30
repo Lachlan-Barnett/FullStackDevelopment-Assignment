@@ -107,7 +107,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-29 | Ban a user from the group, based on a report. | ✅ | Members file reports (Settings → Submit Report). Group admins review them in the **Reports** panel: **Ban from group** (permanent — removes the member, records a ban, rejects any pending join request) or **Dismiss**. Admins can't act on reports they filed, and admins can't be banned (demote first). Banned users see a **Banned** badge on the Groups page. |
 | FR-30 | Ask the super admin to remove a user from the whole system. | ✅ | From a report: **Ask super admin to remove from Fabulari** sends a removal request (the report becomes `escalated`). One pending request per user; not for your own reports or the super admin. |
 | FR-31 | Ask the super admin to delete the group. | ✅ | "Delete Group" panel → super admin approves or rejects. |
-| FR-32 | Raising the age limit removes members who are now too young. | ⏳ | Planned. |
+| FR-32 | Raising the age limit removes members who are now too young. | ✅ | Saving a higher age limit removes every member under it (birthdates stay private — the server works it out) and rejects pending join requests from anyone too young. The dashboard warns beforehand and names who was removed afterwards. Refused if it would leave the group with no admin. |
 | FR-33 | See current and banned members of their group. | ✅ | Dashboard **Members** and **Banned Members** panels. The banned list shows username, date, who banned them and the report's reason — basic details only, no emails. Group bans are permanent, so there is no unban. |
 | FR-34 | Admins are marked in chat. | ✅ | Green **Admin** badge on messages and in the member list. |
 
@@ -127,6 +127,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | Decision | Reason |
 |---|---|
 | Users are identified by a login token (JWT) sent with every request and socket connection. | The server never trusts user ids sent by the client. |
+| When a raised age limit catches an admin, they are removed like anyone else — unless no admin would be left, in which case the change is refused. | Applies the client's rule fairly while keeping the "always one admin" rule. |
 | Admins can't be banned from their group; they must be demoted first. | Keeps the "always one admin" rule safe and makes removing an admin a deliberate two-step action. |
 | A removed user's last messages stay in their rooms (still under their name) until pushed out by newer ones. | Rooms only keep 5 messages, so they disappear naturally; deleting them early would leave gaps in other people's conversations. |
 | Who is banned from a group is private. | Group lists only tell each user whether *they* are banned (`isBanned`). |
@@ -177,7 +178,7 @@ Common errors: `400` invalid input · `401` not logged in / session expired · `
 |---|---|---|---|---|
 | GET | `/groups` | User | — | All groups: `{ id, name, description, ageLimit, colourTheme, members: [{ userId, role }], isBanned }` — `isBanned` says whether *you* are banned; the full banned list is never sent. |
 | GET | `/groups/:groupId` | User | — | One group. `404` if missing. |
-| PUT | `/groups/:groupId` | Group admin | `{ description?, ageLimit?, colourTheme? }` | The updated group. `400` if the colour isn't Blue, Yellow or Red. |
+| PUT | `/groups/:groupId` | Group admin | `{ description?, ageLimit?, colourTheme? }` | The updated group plus `removedMembers: [{ userId, username }]` — members removed because a raised age limit put them under it. `400` if the colour isn't Blue, Yellow or Red, or the age limit isn't a whole number from 0 to 120; `409` if the new age limit would leave the group with no admin. |
 | GET | `/groups/:groupId/members` | Member | — | `[{ userId, role, username }]` (no emails — profiles are private). |
 | PUT | `/groups/:groupId/members/:userId/role` | Group admin | `{ role: "admin" \| "member" }` | The updated group. `409` if it would leave the group with no admin. |
 
@@ -395,7 +396,7 @@ Testing approach: every change is checked with the unit tests and a production b
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
-### Automated unit tests (95 tests, all passing)
+### Automated unit tests (100 tests, all passing)
 
 | Area | File | Tests |
 |---|---|---|
@@ -405,7 +406,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Groups | `groups.spec.ts` | Shows Admin, Pending, rejected reason and Apply · shows Banned with no Apply button · sends a join request and shows Pending · request form has labelled fields and the three colours · sends the group request and clears the form · needs a name · rejects a bad age limit · shows the server error |
 | My Requests | `my-requests.spec.ts` | Lists pending requests of every kind with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
 | Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows initial and "Add photo" · uploads a PNG and shows the photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
-| Group admin dashboard | `group-admin-dashboard.spec.ts` | Lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
+| Group admin dashboard | `group-admin-dashboard.spec.ts` | **Group details:** warns about the age limit · saves and names anyone removed · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · **join requests:** lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
 | Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists group requests · approves a group request · lists deletion requests with reasons · deletes after confirming · cancelling does nothing · rejects without confirming · **user removal:** lists who, email, requester, group and report · removes after confirming and refreshes users and groups · cancelling does nothing · shows the "only admin" error |
 | Guards | `group-admin.guard.spec.ts`, `not-super-admin.guard.spec.ts` | Admin allowed · member redirected · missing group redirected · logged-out redirected without a server call · normal users allowed · super admin redirected to the dashboard |
 | Other pages | `login`, `signup`, `report`, `change-password`, `change-username`, `change-birthdate` | Each page is created |
@@ -422,6 +423,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Super admin | 7 | Can't join groups or chat, even if added to a group directly |
 | Group deletion | 22 | Permissions, one pending request, reject, approve removes everything |
 | User removal | 24 | Escalating a report, permissions, one pending per user, approve deletes the account and photo and blocks login, old tokens and the email (any case), reject, only-admin protection, super admin can't be removed |
+| Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
 | Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
 | Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
 | End-to-end (Chrome) | 45 | Chat 19 · photo 5 · super admin 8 · join 7 · request room 6 (including 2 on-screen layout checks) |
@@ -443,4 +445,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 95 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 100 unit tests plus scripted API, socket and browser checks |

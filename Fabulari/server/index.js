@@ -256,13 +256,65 @@ function initializeRoutes(app, db) {
 
     const changes = {};
     if (description !== undefined) changes.description = description;
-    if (ageLimit !== undefined) changes.ageLimit = Number(ageLimit) || 0;
     if (colourTheme !== undefined) changes.colourTheme = colourTheme;
-
-    if (Object.keys(changes).length) {
-      await groups.updateOne({ id: req.group.id }, { $set: changes });
+    if (ageLimit !== undefined) {
+      const limit = Number(ageLimit);
+      if (!Number.isInteger(limit) || limit < 0 || limit > 120) {
+        return res.status(400).json({ message: 'Age limit must be a whole number from 0 to 120' });
+      }
+      changes.ageLimit = limit;
     }
-    res.json(groupFor({ ...req.group, ...changes }, req.user.id));
+
+    // Raising the age limit removes members who are now too young (the client's rule).
+    // Birthdates are private, so the server works this out and reports who was removed.
+    let removed = [];
+    if (changes.ageLimit !== undefined && changes.ageLimit > req.group.ageLimit) {
+      const memberIds = req.group.members.map((m) => m.userId);
+      const memberUsers = await users
+        .find({ id: { $in: memberIds } }, { projection: { _id: 0, id: 1, username: 1, birthdate: 1 } })
+        .toArray();
+      removed = memberUsers.filter((u) => ageOf(u.birthdate) < changes.ageLimit);
+
+      const removedIds = new Set(removed.map((u) => u.id));
+      const adminsLeft = req.group.members.filter((m) => m.role === 'admin' && !removedIds.has(m.userId));
+      if (adminsLeft.length === 0) {
+        return res.status(409).json({
+          message: `An age limit of ${changes.ageLimit} would leave the group with no admin. Promote an older member first.`,
+        });
+      }
+    }
+
+    const update = Object.keys(changes).length ? { $set: changes } : {};
+    if (removed.length) update.$pull = { members: { userId: { $in: removed.map((u) => u.id) } } };
+    if (Object.keys(update).length) {
+      await groups.updateOne({ id: req.group.id }, update);
+    }
+    if (changes.ageLimit !== undefined) {
+      // Pending requests from people now under the limit can never be approved.
+      const pending = await joinRequests.find({ groupId: req.group.id, status: 'pending' }).toArray();
+      const applicants = await users
+        .find({ id: { $in: pending.map((r) => r.userId) } }, { projection: { _id: 0, id: 1, birthdate: 1 } })
+        .toArray();
+      const tooYoung = applicants.filter((u) => ageOf(u.birthdate) < changes.ageLimit).map((u) => u.id);
+      if (tooYoung.length) {
+        await joinRequests.updateMany(
+          { groupId: req.group.id, status: 'pending', userId: { $in: tooYoung } },
+          {
+            $set: {
+              status: 'rejected',
+              rejectionReason: `You must be ${changes.ageLimit} or older to join this group`,
+              reviewedBy: req.user.id,
+            },
+          },
+        );
+      }
+    }
+
+    const updated = await groups.findOne({ id: req.group.id }, NO_ID);
+    res.json({
+      ...groupFor(updated, req.user.id),
+      removedMembers: removed.map((u) => ({ userId: u.id, username: u.username })),
+    });
   });
 
   // Member list for people inside the group. Profiles are private, so only username and role are shared.

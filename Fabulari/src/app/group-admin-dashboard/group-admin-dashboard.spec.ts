@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
 import { AuthService } from '../services/auth.service';
@@ -83,6 +83,59 @@ describe('GroupAdminDashboard', () => {
       ],
     });
     http = TestBed.inject(HttpTestingController);
+  });
+
+  describe('group details', () => {
+    async function save(ageLimit: string) {
+      const age = panel('Group Details').querySelector<HTMLInputElement>('input[name=editAgeLimit]')!;
+      age.value = ageLimit;
+      age.dispatchEvent(new Event('input'));
+      await settle();
+      panel('Group Details').querySelector('form')!.dispatchEvent(new Event('submit'));
+      await settle();
+      return http.expectOne(`${API_URL}/groups/1`);
+    }
+
+    it('warns that raising the age limit removes members', async () => {
+      await loadPage();
+      expect(panel('Group Details').textContent).toContain('Raising the age limit removes members who are now too young.');
+    });
+
+    it('saves and names anyone removed by a higher age limit', async () => {
+      await loadPage();
+      const put = await save('18');
+      expect(put.request.method).toBe('PUT');
+      expect(put.request.body).toEqual({ description: 'anything', ageLimit: 18, colourTheme: 'Blue' });
+      put.flush({ ...group, ageLimit: 18, members: [group.members[0]], removedMembers: [{ userId: 3, username: 'user2' }] });
+      await settle();
+      expect(panel('Group Details').textContent).toContain('Removed 1 member(s) under the new age limit: user2.');
+      expect(panel('Members').textContent).not.toContain('user2');
+    });
+
+    it('says Saved when nobody was removed', async () => {
+      await loadPage();
+      (await save('13')).flush({ ...group, removedMembers: [] });
+      await settle();
+      expect(panel('Group Details').querySelector('[role=status]')?.textContent?.trim()).toBe('Saved.');
+    });
+
+    it('leaves the dashboard if the admin removed themselves', async () => {
+      await loadPage();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      (await save('30')).flush({ ...group, removedMembers: [{ userId: 2, username: 'user1' }] });
+      await settle();
+      expect(navigate).toHaveBeenCalledWith('/chat');
+    });
+
+    it('shows the server error, e.g. no admin would be left', async () => {
+      await loadPage();
+      (await save('99')).flush(
+        { message: 'An age limit of 99 would leave the group with no admin. Promote an older member first.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('would leave the group with no admin');
+    });
   });
 
   describe('join requests', () => {

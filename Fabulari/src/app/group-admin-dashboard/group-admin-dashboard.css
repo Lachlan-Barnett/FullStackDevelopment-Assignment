@@ -156,3 +156,9 @@
   border-color: #b00020;
   color: #6b0012;
 }
+
+.field-hint {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: #666;
+}
