@@ -4,6 +4,10 @@ export interface Report {
   reportedBy: number;
   groupId: number;
   reason: string;
-  status: 'pending' | 'actioned' | 'dismissed';
+  status: 'pending' | 'actioned' | 'dismissed'; // actioned = the user was banned
+  reviewedBy?: number | null;
   createdAt: string;
+  // Included when listed for a group admin.
+  reporterName?: string | null;
+  reportedName?: string | null;
 }

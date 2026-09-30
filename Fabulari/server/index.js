@@ -25,6 +25,12 @@ function isText(value) {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+// A group as sent to a user: who is banned stays private; the user only learns whether *they* are banned.
+function groupFor(group, userId) {
+  const { bannedUserIds = [], _id, ...rest } = group;
+  return { ...rest, isBanned: bannedUserIds.includes(userId) };
+}
+
 // Never send the password hash back to the client.
 function publicUser(user) {
   const { passwordHash, _id, ...details } = user;
@@ -41,6 +47,7 @@ function initializeRoutes(app, db) {
   const roomRequests = db.collection('roomRequests');
   const messages = db.collection('messages');
   const groupDeleteRequests = db.collection('groupDeleteRequests');
+  const bans = db.collection('bans');
 
   const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
     createAuth(db);
@@ -145,13 +152,14 @@ function initializeRoutes(app, db) {
   });
 
   app.get('/api/groups', async (req, res) => {
-    res.json(await groups.find({}, NO_ID).sort({ id: 1 }).toArray());
+    const all = await groups.find({}, NO_ID).sort({ id: 1 }).toArray();
+    res.json(all.map((g) => groupFor(g, req.user.id)));
   });
 
   app.get('/api/groups/:groupId', async (req, res) => {
     const group = await groups.findOne({ id: Number(req.params.groupId) }, NO_ID);
     if (!group) return res.status(404).json({ message: 'Group not found' });
-    res.json(group);
+    res.json(groupFor(group, req.user.id));
   });
 
   // Users ask for a group; the super admin creates it by approving the request.
@@ -249,7 +257,7 @@ function initializeRoutes(app, db) {
     if (Object.keys(changes).length) {
       await groups.updateOne({ id: req.group.id }, { $set: changes });
     }
-    res.json({ ...req.group, ...changes });
+    res.json(groupFor({ ...req.group, ...changes }, req.user.id));
   });
 
   // Member list for people inside the group. Profiles are private, so only username and role are shared.
@@ -268,6 +276,10 @@ function initializeRoutes(app, db) {
     if (!group) return res.status(404).json({ message: 'Group not found' });
 
     const userId = req.user.id;
+    // Group bans are permanent (the client: "banned forever").
+    if ((group.bannedUserIds ?? []).includes(userId)) {
+      return res.status(403).json({ message: 'You are banned from this group' });
+    }
     if (group.members.some((m) => m.userId === userId)) {
       return res.status(409).json({ message: 'Already a member of this group' });
     }
@@ -338,7 +350,7 @@ function initializeRoutes(app, db) {
     }
 
     await groups.updateOne({ id: group.id, 'members.userId': userId }, { $set: { 'members.$.role': newRole } });
-    res.json(await groups.findOne({ id: group.id }, NO_ID));
+    res.json(groupFor(await groups.findOne({ id: group.id }, NO_ID), req.user.id));
   });
 
   app.get('/api/groups/:groupId/rooms', requireGroupMember, async (req, res) => {
@@ -450,6 +462,58 @@ function initializeRoutes(app, db) {
       res.json({ url: await savePng(req.file.buffer) });
     },
   );
+
+  // Reports filed in a group are reviewed by that group's admins. Banning always comes from a report.
+  app.get('/api/groups/:groupId/reports', requireGroupAdmin, async (req, res) => {
+    const pending = await reports.find({ groupId: req.group.id, status: 'pending' }, NO_ID).sort({ id: 1 }).toArray();
+    const named = await withUsernames(await withUsernames(pending, 'reportedBy', 'reporterName'), 'reportedUserId', 'reportedName');
+    res.json(named);
+  });
+
+  app.put('/api/groups/:groupId/reports/:reportId', requireGroupAdmin, async (req, res) => {
+    const group = req.group;
+    const report = await reports.findOne({ id: Number(req.params.reportId), groupId: group.id }, NO_ID);
+    if (!report) return res.status(404).json({ message: 'Report not found' });
+    if (report.status !== 'pending') return res.status(409).json({ message: 'Report already actioned' });
+    // Admins can't act on their own reports (the client: no self-approving).
+    if (report.reportedBy === req.user.id) {
+      return res.status(403).json({ message: 'Another admin must review a report you filed' });
+    }
+
+    const action = req.body.action;
+    if (action !== 'ban' && action !== 'dismiss') {
+      return res.status(400).json({ message: 'Action must be "ban" or "dismiss"' });
+    }
+
+    if (action === 'ban') {
+      const target = group.members.find((m) => m.userId === report.reportedUserId);
+      if (target?.role === 'admin') {
+        return res.status(409).json({ message: 'Admins cannot be banned. Demote them first.' });
+      }
+
+      await groups.updateOne(
+        { id: group.id },
+        { $pull: { members: { userId: report.reportedUserId } }, $addToSet: { bannedUserIds: report.reportedUserId } },
+      );
+      await joinRequests.updateMany(
+        { groupId: group.id, userId: report.reportedUserId, status: 'pending' },
+        { $set: { status: 'rejected', rejectionReason: 'You are banned from this group', reviewedBy: req.user.id } },
+      );
+      await bans.insertOne({
+        id: await nextId(db, 'bans'),
+        userId: report.reportedUserId,
+        scope: 'group',
+        groupId: group.id,
+        reportId: report.id,
+        issuedBy: req.user.id,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    const changes = { status: action === 'ban' ? 'actioned' : 'dismissed', reviewedBy: req.user.id };
+    await reports.updateOne({ id: report.id }, { $set: changes });
+    res.json({ ...report, ...changes });
+  });
 
   // Group deletion: a group admin asks, the super admin decides. Groups are never deleted directly.
   app.post('/api/groups/:groupId/delete-requests', requireGroupAdmin, async (req, res) => {

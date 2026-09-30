@@ -80,6 +80,9 @@
                     @case ('member') {
                         <span class="member-badge">Member</span>
                     }
+                    @case ('banned') {
+                        <span class="banned-badge" title="You were banned from this group after a report">Banned</span>
+                    }
                     @case ('pending') {
                         <button type="button" class="btn btn-sm btn-outline-dark" disabled>Pending</button>
                     }

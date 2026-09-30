@@ -6,7 +6,7 @@ import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
 import { COLOUR_THEMES, ColourTheme, Group, GroupRequest, JoinRequest } from '../models';
 
-type GroupStatus = 'admin' | 'member' | 'pending' | 'rejected' | 'none';
+type GroupStatus = 'admin' | 'member' | 'banned' | 'pending' | 'rejected' | 'none';
 
 @Component({
   selector: 'app-groups',
@@ -109,6 +109,7 @@ export class Groups {
     const userId = this.currentUserId();
     const membership = group.members.find((m) => m.userId === userId);
     if (membership) return membership.role === 'admin' ? 'admin' : 'member';
+    if (group.isBanned) return 'banned';
 
     const request = this.latestRequest(group);
     if (request?.status === 'pending') return 'pending';

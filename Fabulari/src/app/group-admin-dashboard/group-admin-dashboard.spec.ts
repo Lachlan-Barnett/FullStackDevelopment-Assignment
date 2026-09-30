@@ -6,7 +6,7 @@ import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, JoinRequest, RoomRequest, User } from '../models';
+import { Group, JoinRequest, Report, RoomRequest, User } from '../models';
 
 describe('GroupAdminDashboard', () => {
   let fixture: ComponentFixture<GroupAdminDashboard>;
@@ -38,6 +38,10 @@ describe('GroupAdminDashboard', () => {
     reviewedBy: null,
     createdAt: '2026-09-29T01:00:00.000Z',
   };
+  const report: Report = {
+    id: 8, reportedUserId: 3, reportedBy: 7, groupId: 1, reason: 'spamming the room', status: 'pending',
+    createdAt: '2026-09-30T01:00:00.000Z', reporterName: 'newbie', reportedName: 'user2',
+  };
   const roomRequests: RoomRequest[] = [
     { id: 1, groupId: 1, requestedBy: 3, requesterName: 'user2', name: 'memes', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
     { id: 2, groupId: 1, requestedBy: 2, requesterName: 'user1', name: 'news', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
@@ -53,7 +57,7 @@ describe('GroupAdminDashboard', () => {
   const buttonIn = (root: Element, text: string) =>
     [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 
-  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = []) {
+  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report]) {
     fixture = TestBed.createComponent(GroupAdminDashboard);
     fixture.detectChanges();
     http.expectOne(`${API_URL}/groups/1`).flush(group);
@@ -61,6 +65,7 @@ describe('GroupAdminDashboard', () => {
     http.expectOne(`${API_URL}/groups/1/room-requests`).flush(roomRequests);
     http.expectOne(`${API_URL}/groups/1/join-requests`).flush(joins);
     http.expectOne(`${API_URL}/groups/1/delete-requests`).flush(deletes);
+    http.expectOne(`${API_URL}/groups/1/reports`).flush(reports);
     http.expectOne(`${API_URL}/users`).flush(users);
     await settle();
   }
@@ -149,6 +154,64 @@ describe('GroupAdminDashboard', () => {
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('Enter a reason before rejecting "memes".');
       http.expectNone(`${API_URL}/groups/1/room-requests/1`);
+    });
+  });
+
+  describe('reports', () => {
+    it('lists reports with who reported whom and why', async () => {
+      await loadPage();
+      const text = panel('Reports').textContent ?? '';
+      expect(text).toContain('user2');
+      expect(text).toContain('reported by newbie');
+      expect(text).toContain('spamming the room');
+    });
+
+    it('bans after confirming and removes the member', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      buttonIn(panel('Reports'), 'Ban from group').click();
+      const put = http.expectOne(`${API_URL}/groups/1/reports/8`);
+      expect(put.request.body).toEqual({ action: 'ban' });
+      put.flush({ ...report, status: 'actioned' });
+      http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
+      http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [group.members[0]] });
+      await settle();
+      expect(panel('Reports').textContent).toContain('No reports to review.');
+      expect(panel('Members').textContent).not.toContain('user2');
+    });
+
+    it('does not ban if the confirmation is cancelled', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      buttonIn(panel('Reports'), 'Ban from group').click();
+      http.expectNone(`${API_URL}/groups/1/reports/8`);
+    });
+
+    it('dismisses without banning', async () => {
+      await loadPage();
+      buttonIn(panel('Reports'), 'Dismiss').click();
+      const put = http.expectOne(`${API_URL}/groups/1/reports/8`);
+      expect(put.request.body).toEqual({ action: 'dismiss' });
+      put.flush({ ...report, status: 'dismissed' });
+      http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
+      http.expectNone(`${API_URL}/groups/1`);
+    });
+
+    it('cannot act on a report you filed', async () => {
+      await loadPage([], [], [{ ...report, reportedBy: 2, reporterName: 'user1' }]);
+      expect(panel('Reports').textContent).toContain('another admin must review it');
+      expect(panel('Reports').querySelector('button')).toBeNull();
+    });
+
+    it('shows the server error, e.g. trying to ban an admin', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      buttonIn(panel('Reports'), 'Ban from group').click();
+      http
+        .expectOne(`${API_URL}/groups/1/reports/8`)
+        .flush({ message: 'Admins cannot be banned. Demote them first.' }, { status: 409, statusText: 'Conflict' });
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('Admins cannot be banned');
     });
   });
 

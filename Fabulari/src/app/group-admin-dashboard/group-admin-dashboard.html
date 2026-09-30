@@ -62,6 +62,31 @@
 
   <div class="card panel">
     <div class="card-body">
+      <div class="panel-title">Reports</div>
+      @for (report of reports(); track report.id) {
+        <div class="request-card">
+          <div class="request-header">
+            <span class="room-name">{{ report.reportedName ?? ('User #' + report.reportedUserId) }}</span>
+            <span class="request-meta">reported by {{ report.reporterName ?? ('User #' + report.reportedBy) }} &middot; {{ report.createdAt | date: 'd MMM, h:mm a' }}</span>
+          </div>
+          <div class="report-reason">{{ report.reason }}</div>
+          @if (isOwnReport(report)) {
+            <div class="request-meta">You filed this report &mdash; another admin must review it.</div>
+          } @else {
+            <div class="request-actions">
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionReport(report, 'ban')">Ban from group</button>
+              <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionReport(report, 'dismiss')">Dismiss</button>
+            </div>
+          }
+        </div>
+      } @empty {
+        <p class="empty-note">No reports to review.</p>
+      }
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="card-body">
       <div class="panel-title">Members</div>
       @for (member of members(); track member.userId) {
         <div class="member-row">

@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Room, RoomRequest, User } from '../models';
+import { COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Report, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -27,6 +27,9 @@ export class GroupAdminDashboard {
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};
+
+  // Reports filed about members of this group. Banning always comes from a report.
+  protected readonly reports = signal<Report[]>([]);
 
   // Deleting the group is a request to the super admin.
   protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
@@ -61,6 +64,7 @@ export class GroupAdminDashboard {
     this.loadRoomRequests(groupID);
     this.loadJoinRequests(groupID);
     this.loadDeleteRequests(groupID);
+    this.loadReports(groupID);
     this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
@@ -127,6 +131,33 @@ export class GroupAdminDashboard {
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
       });
+  }
+
+  private loadReports(groupId: number) {
+    this.http.get<Report[]>(`${API_URL}/groups/${groupId}/reports`).subscribe({
+      next: (reports) => this.reports.set(reports),
+    });
+  }
+
+  isOwnReport(report: Report) {
+    return report.reportedBy === this.currentUserId();
+  }
+
+  // Banning removes the user from the group for good; dismissing just closes the report.
+  actionReport(report: Report, action: 'ban' | 'dismiss') {
+    const group = this.group();
+    if (!group) return;
+    const name = report.reportedName ?? `User #${report.reportedUserId}`;
+    if (action === 'ban' && !confirm(`Ban ${name} from ${group.name}? Bans are permanent.`)) return;
+
+    this.errorMessage.set('');
+    this.http.put<Report>(`${API_URL}/groups/${group.id}/reports/${report.id}`, { action }).subscribe({
+      next: () => {
+        this.loadReports(group.id);
+        if (action === 'ban') this.loadGroup(group.id); // they're no longer a member
+      },
+      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that report.'),
+    });
   }
 
   private loadDeleteRequests(groupId: number) {

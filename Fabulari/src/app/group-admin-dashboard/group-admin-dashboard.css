@@ -143,3 +143,9 @@
 .danger-panel {
   border: 1px solid #b00020;
 }
+
+.report-reason {
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

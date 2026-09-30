@@ -17,4 +17,5 @@ export interface Group {
   ageLimit: number;
   colourTheme: ColourTheme;
   members: GroupMember[];
+  isBanned?: boolean; // whether the logged-in user is banned from this group (who else is banned stays private)
 }

@@ -69,6 +69,17 @@ describe('Groups', () => {
       expect(rows[2]).toContain('Apply');
     });
 
+    it('shows Banned with no Apply button for groups you were banned from', async () => {
+      fixture = TestBed.createComponent(Groups);
+      fixture.detectChanges();
+      http.expectOne(`${API_URL}/groups`).flush([{ ...groups[1], isBanned: true }]);
+      http.expectOne(`${API_URL}/join-requests/mine`).flush([]);
+      await settle();
+      const row = el().querySelector('.group-row')!;
+      expect(row.textContent).toContain('Banned');
+      expect(row.querySelector('button')).toBeNull();
+    });
+
     it('sends a join request and shows Pending', async () => {
       await loadPage();
       const row = [...el().querySelectorAll('.group-row')][2];
