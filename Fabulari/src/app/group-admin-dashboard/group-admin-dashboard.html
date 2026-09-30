@@ -126,4 +126,32 @@
       }
     </div>
   </div>
+
+  <div class="card panel danger-panel">
+    <div class="card-body">
+      <div class="panel-title">Delete Group</div>
+      @if (pendingDelete(); as pending) {
+        <p class="request-meta">
+          Deletion requested {{ pending.createdAt | date: "d MMM, h:mm a" }} &mdash; waiting for the super admin.
+        </p>
+      } @else {
+        @if (lastRejectedDelete(); as rejected) {
+          <p class="request-meta">
+            Your last deletion request was rejected{{ rejected.rejectionReason ? ": " + rejected.rejectionReason : "." }}
+          </p>
+        }
+        <p class="request-meta">Groups can only be deleted by the super admin. If they approve, every room and message in this group is removed.</p>
+        <div class="request-actions">
+          <input
+            type="text"
+            class="form-control form-control-sm"
+            placeholder="Reason (optional)"
+            aria-label="Reason for deleting the group"
+            [(ngModel)]="deleteReason"
+          >
+          <button type="button" class="btn btn-sm btn-outline-danger" (click)="requestDeletion()">Request deletion</button>
+        </div>
+      }
+    </div>
+  </div>
 </div>

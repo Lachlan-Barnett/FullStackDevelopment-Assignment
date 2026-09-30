@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { API_URL } from '../api.config';
 import { AuthService } from '../services/auth.service';
-import { AuditLogEntry, Group, GroupRequest, User } from '../models';
+import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, User } from '../models';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -24,12 +24,41 @@ export class SuperAdminDashboard {
   protected readonly auditLog = signal<AuditLogEntry[]>([]);
 
   protected readonly groupRequests = signal<GroupRequest[]>([]);
+  protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
+  protected deleteRejectReasons: Record<number, string> = {};
   protected rejectReasons: Record<number, string> = {};
 
   ngOnInit() {
     this.loadGroups();
     this.loadUsers();
     this.loadGroupRequests();
+    this.loadDeleteRequests();
+  }
+
+  private loadDeleteRequests() {
+    this.http.get<GroupDeleteRequest[]>(`${API_URL}/admin/group-delete-requests`).subscribe({
+      next: (requests) => this.deleteRequests.set(requests),
+    });
+  }
+
+  actionDeleteRequest(request: GroupDeleteRequest, approve: boolean) {
+    if (approve && !confirm(`Delete "${request.groupName}" and all of its rooms and messages? This can't be undone.`)) {
+      return;
+    }
+    this.errorMessage.set('');
+    this.http
+      .put(`${API_URL}/admin/group-delete-requests/${request.id}`, {
+        approve,
+        reason: this.deleteRejectReasons[request.id] ?? '',
+      })
+      .subscribe({
+        next: () => {
+          delete this.deleteRejectReasons[request.id];
+          this.loadDeleteRequests();
+          if (approve) this.loadGroups();
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
+      });
   }
 
   logout() {

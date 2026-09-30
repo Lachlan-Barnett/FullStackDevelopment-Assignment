@@ -33,3 +33,12 @@ export interface RoomRequest extends BaseRequest {
   name: string;
   description: string;
 }
+
+// A group admin asking the super admin to delete their group.
+export interface GroupDeleteRequest extends BaseRequest {
+  groupId: number;
+  groupName: string; // kept after the group is deleted
+  requestedBy: number;
+  requesterName?: string | null; // included when listed for the super admin
+  reason: string;
+}

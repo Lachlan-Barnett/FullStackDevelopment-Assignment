@@ -139,3 +139,7 @@
 .room-name {
   flex: 1;
 }
+
+.danger-panel {
+  border: 1px solid #b00020;
+}

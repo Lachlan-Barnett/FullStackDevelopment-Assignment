@@ -38,3 +38,6 @@ if (typeof globalThis.localStorage?.getItem !== 'function') {
 
 // Each test starts logged out with default settings.
 beforeEach(() => localStorage.clear());
+
+// Undo vi.spyOn(...) after each test (e.g. on window.confirm) so spies never leak between tests.
+afterEach(() => vi.restoreAllMocks());

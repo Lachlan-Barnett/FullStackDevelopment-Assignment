@@ -20,6 +20,11 @@ function ageOf(birthdate) {
   return hadBirthday ? age : age - 1;
 }
 
+// A non-empty string. Request bodies are JSON, so a field could be a number, object, etc.
+function isText(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
 // Never send the password hash back to the client.
 function publicUser(user) {
   const { passwordHash, _id, ...details } = user;
@@ -35,6 +40,7 @@ function initializeRoutes(app, db) {
   const groupRequests = db.collection('groupRequests');
   const roomRequests = db.collection('roomRequests');
   const messages = db.collection('messages');
+  const groupDeleteRequests = db.collection('groupDeleteRequests');
 
   const { signToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf } =
     createAuth(db);
@@ -50,7 +56,7 @@ function initializeRoutes(app, db) {
   app.post('/api/auth', async (req, res) => {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (!isText(email) || !isText(password)) {
       return res.status(400).json({ valid: false, message: 'Email and password are required' });
     }
 
@@ -66,7 +72,7 @@ function initializeRoutes(app, db) {
   app.post('/api/signup', async (req, res) => {
     const { email, username, birthdate, password } = req.body;
 
-    if (!email || !username || !password) {
+    if (!isText(email) || !isText(username) || !isText(password)) {
       return res.status(400).json({ valid: false, message: 'Email, username and password are required' });
     }
 
@@ -444,6 +450,65 @@ function initializeRoutes(app, db) {
       res.json({ url: await savePng(req.file.buffer) });
     },
   );
+
+  // Group deletion: a group admin asks, the super admin decides. Groups are never deleted directly.
+  app.post('/api/groups/:groupId/delete-requests', requireGroupAdmin, async (req, res) => {
+    const group = req.group;
+    if (await groupDeleteRequests.findOne({ groupId: group.id, status: 'pending' })) {
+      return res.status(409).json({ message: 'A deletion request for this group is already waiting' });
+    }
+
+    const request = {
+      id: await nextId(db, 'groupDeleteRequests'),
+      groupId: group.id,
+      groupName: group.name, // kept so the request still makes sense once the group is gone
+      requestedBy: req.user.id,
+      reason: req.body.reason?.trim() || '',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: new Date().toISOString(),
+    };
+    await groupDeleteRequests.insertOne({ ...request });
+    res.json(request);
+  });
+
+  app.get('/api/groups/:groupId/delete-requests', requireGroupAdmin, async (req, res) => {
+    res.json(await groupDeleteRequests.find({ groupId: req.group.id }, NO_ID).sort({ id: -1 }).toArray());
+  });
+
+  app.get('/api/admin/group-delete-requests', requireSuperAdmin, async (req, res) => {
+    const pending = await groupDeleteRequests.find({ status: 'pending' }, NO_ID).sort({ id: 1 }).toArray();
+    res.json(await withUsernames(pending, 'requestedBy', 'requesterName'));
+  });
+
+  app.put('/api/admin/group-delete-requests/:requestId', requireSuperAdmin, async (req, res) => {
+    const request = await groupDeleteRequests.findOne({ id: Number(req.params.requestId) }, NO_ID);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
+
+    const approve = req.body.approve === true;
+    const changes = { status: approve ? 'approved' : 'rejected', reviewedBy: req.user.id };
+    if (!approve) changes.rejectionReason = req.body.reason?.trim() || null;
+
+    if (approve) {
+      // Remove the group and everything that only exists inside it.
+      const groupId = request.groupId;
+      const roomIds = (await rooms.find({ groupId }, { projection: { id: 1 } }).toArray()).map((r) => r.id);
+      const images = await messages
+        .find({ roomId: { $in: roomIds }, type: 'image' }, { projection: { content: 1 } })
+        .toArray();
+      await messages.deleteMany({ roomId: { $in: roomIds } });
+      await deleteUploads(images.map((m) => m.content));
+      await rooms.deleteMany({ groupId });
+      await joinRequests.deleteMany({ groupId, status: 'pending' });
+      await roomRequests.deleteMany({ groupId, status: 'pending' });
+      await groups.deleteOne({ id: groupId });
+    }
+
+    await groupDeleteRequests.updateOne({ id: request.id }, { $set: changes });
+    res.json({ ...request, ...changes });
+  });
 
   // A report is always filed within a group, so that group's admins can act on it.
   app.post('/api/reports', async (req, res) => {

@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { COLOUR_THEMES, ColourTheme, Group, GroupMember, JoinRequest, Room, RoomRequest, User } from '../models';
+import { COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -27,6 +27,14 @@ export class GroupAdminDashboard {
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};
+
+  // Deleting the group is a request to the super admin.
+  protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
+  protected readonly pendingDelete = computed(() => this.deleteRequests().find((r) => r.status === 'pending') ?? null);
+  protected readonly lastRejectedDelete = computed(() =>
+    this.pendingDelete() ? null : (this.deleteRequests().find((r) => r.status === 'rejected') ?? null),
+  );
+  protected readonly deleteReason = signal('');
 
   // Join requests have their own ids, so they get their own reason boxes.
   protected readonly joinRequests = signal<JoinRequest[]>([]);
@@ -52,6 +60,7 @@ export class GroupAdminDashboard {
     this.loadRooms(groupID);
     this.loadRoomRequests(groupID);
     this.loadJoinRequests(groupID);
+    this.loadDeleteRequests(groupID);
     this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
@@ -117,6 +126,31 @@ export class GroupAdminDashboard {
           if (approve) this.loadRooms(group.id);
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
+      });
+  }
+
+  private loadDeleteRequests(groupId: number) {
+    this.http.get<GroupDeleteRequest[]>(`${API_URL}/groups/${groupId}/delete-requests`).subscribe({
+      next: (requests) => this.deleteRequests.set(requests),
+    });
+  }
+
+  requestDeletion() {
+    const group = this.group();
+    if (!group) return;
+    if (!confirm(`Ask the super admin to delete "${group.name}"? If approved, all its rooms and messages are removed.`)) {
+      return;
+    }
+
+    this.errorMessage.set('');
+    this.http
+      .post<GroupDeleteRequest>(`${API_URL}/groups/${group.id}/delete-requests`, { reason: this.deleteReason().trim() })
+      .subscribe({
+        next: () => {
+          this.deleteReason.set('');
+          this.loadDeleteRequests(group.id);
+        },
+        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to send the deletion request.'),
       });
   }
 

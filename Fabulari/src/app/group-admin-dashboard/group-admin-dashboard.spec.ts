@@ -53,13 +53,14 @@ describe('GroupAdminDashboard', () => {
   const buttonIn = (root: Element, text: string) =>
     [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 
-  async function loadPage(joins: JoinRequest[] = [joinRequest]) {
+  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = []) {
     fixture = TestBed.createComponent(GroupAdminDashboard);
     fixture.detectChanges();
     http.expectOne(`${API_URL}/groups/1`).flush(group);
     http.expectOne(`${API_URL}/groups/1/rooms`).flush([]);
     http.expectOne(`${API_URL}/groups/1/room-requests`).flush(roomRequests);
     http.expectOne(`${API_URL}/groups/1/join-requests`).flush(joins);
+    http.expectOne(`${API_URL}/groups/1/delete-requests`).flush(deletes);
     http.expectOne(`${API_URL}/users`).flush(users);
     await settle();
   }
@@ -148,6 +149,47 @@ describe('GroupAdminDashboard', () => {
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('Enter a reason before rejecting "memes".');
       http.expectNone(`${API_URL}/groups/1/room-requests/1`);
+    });
+  });
+
+  describe('deleting the group', () => {
+    const pendingDelete = { id: 1, groupId: 1, groupName: 'help', requestedBy: 2, reason: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '2026-09-30T01:00:00.000Z' };
+
+    it('sends a deletion request after confirming', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const input = panel('Delete Group').querySelector<HTMLInputElement>('input')!;
+      input.value = 'nobody uses it';
+      input.dispatchEvent(new Event('input'));
+      await settle();
+      buttonIn(panel('Delete Group'), 'Request deletion').click();
+
+      const post = http.expectOne(`${API_URL}/groups/1/delete-requests`);
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual({ reason: 'nobody uses it' });
+      post.flush(pendingDelete);
+      http.expectOne(`${API_URL}/groups/1/delete-requests`).flush([pendingDelete]);
+      await settle();
+      expect(panel('Delete Group').textContent).toContain('waiting for the super admin');
+    });
+
+    it('does nothing if the admin cancels the confirmation', async () => {
+      await loadPage();
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      buttonIn(panel('Delete Group'), 'Request deletion').click();
+      http.expectNone(`${API_URL}/groups/1/delete-requests`);
+    });
+
+    it('shows a pending request instead of the button', async () => {
+      await loadPage([joinRequest], [pendingDelete]);
+      expect(panel('Delete Group').textContent).toContain('waiting for the super admin');
+      expect(buttonIn(panel('Delete Group'), 'Request deletion')).toBeUndefined();
+    });
+
+    it('shows why the last request was rejected', async () => {
+      await loadPage([joinRequest], [{ ...pendingDelete, status: 'rejected', rejectionReason: 'still active' }]);
+      expect(panel('Delete Group').textContent).toContain('rejected: still active');
+      expect(buttonIn(panel('Delete Group'), 'Request deletion')).toBeDefined();
     });
   });
 
