@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Report, Room, RoomRequest, User } from '../models';
+import { BannedMember, COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Report, Room, RoomRequest, User } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -30,6 +30,7 @@ export class GroupAdminDashboard {
 
   // Reports filed about members of this group. Banning always comes from a report.
   protected readonly reports = signal<Report[]>([]);
+  protected readonly banned = signal<BannedMember[]>([]);
 
   // Deleting the group is a request to the super admin.
   protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
@@ -65,6 +66,7 @@ export class GroupAdminDashboard {
     this.loadJoinRequests(groupID);
     this.loadDeleteRequests(groupID);
     this.loadReports(groupID);
+    this.loadBanned(groupID);
     this.http.get<User[]>(`${API_URL}/users`).subscribe({
       next: (users) => this.users.set(users),
     });
@@ -139,6 +141,12 @@ export class GroupAdminDashboard {
     });
   }
 
+  private loadBanned(groupId: number) {
+    this.http.get<BannedMember[]>(`${API_URL}/groups/${groupId}/banned`).subscribe({
+      next: (banned) => this.banned.set(banned),
+    });
+  }
+
   isOwnReport(report: Report) {
     return report.reportedBy === this.currentUserId();
   }
@@ -154,7 +162,10 @@ export class GroupAdminDashboard {
     this.http.put<Report>(`${API_URL}/groups/${group.id}/reports/${report.id}`, { action }).subscribe({
       next: () => {
         this.loadReports(group.id);
-        if (action === 'ban') this.loadGroup(group.id); // they're no longer a member
+        if (action === 'ban') {
+          this.loadGroup(group.id); // they're no longer a member
+          this.loadBanned(group.id);
+        }
       },
       error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that report.'),
     });

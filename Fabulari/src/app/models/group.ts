@@ -19,3 +19,12 @@ export interface Group {
   members: GroupMember[];
   isBanned?: boolean; // whether the logged-in user is banned from this group (who else is banned stays private)
 }
+
+// Someone banned from a group, as shown to that group's admins (GET /groups/:groupId/banned).
+export interface BannedMember {
+  userId: number;
+  username: string | null; // null if the account has since been removed from Fabulari
+  bannedAt: string;
+  bannedByName: string | null;
+  reason: string | null; // the report the ban came from
+}

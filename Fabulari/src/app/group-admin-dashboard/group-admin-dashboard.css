@@ -150,3 +150,9 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.banned-badge {
+  background: #f8d7da;
+  border-color: #b00020;
+  color: #6b0012;
+}

@@ -6,7 +6,7 @@ import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, JoinRequest, Report, RoomRequest, User } from '../models';
+import { BannedMember, Group, JoinRequest, Report, RoomRequest, User } from '../models';
 
 describe('GroupAdminDashboard', () => {
   let fixture: ComponentFixture<GroupAdminDashboard>;
@@ -57,7 +57,7 @@ describe('GroupAdminDashboard', () => {
   const buttonIn = (root: Element, text: string) =>
     [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
 
-  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report]) {
+  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report], banned: BannedMember[] = []) {
     fixture = TestBed.createComponent(GroupAdminDashboard);
     fixture.detectChanges();
     http.expectOne(`${API_URL}/groups/1`).flush(group);
@@ -66,6 +66,7 @@ describe('GroupAdminDashboard', () => {
     http.expectOne(`${API_URL}/groups/1/join-requests`).flush(joins);
     http.expectOne(`${API_URL}/groups/1/delete-requests`).flush(deletes);
     http.expectOne(`${API_URL}/groups/1/reports`).flush(reports);
+    http.expectOne(`${API_URL}/groups/1/banned`).flush(banned);
     http.expectOne(`${API_URL}/users`).flush(users);
     await settle();
   }
@@ -175,9 +176,13 @@ describe('GroupAdminDashboard', () => {
       put.flush({ ...report, status: 'actioned' });
       http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
       http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [group.members[0]] });
+      http
+        .expectOne(`${API_URL}/groups/1/banned`)
+        .flush([{ userId: 3, username: 'user2', bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: 'spamming the room' }]);
       await settle();
       expect(panel('Reports').textContent).toContain('No reports to review.');
       expect(panel('Members').textContent).not.toContain('user2');
+      expect(panel('Banned Members').textContent).toContain('user2');
     });
 
     it('does not ban if the confirmation is cancelled', async () => {
@@ -224,6 +229,29 @@ describe('GroupAdminDashboard', () => {
         .flush({ message: 'Admins cannot be banned. Demote them first.' }, { status: 409, statusText: 'Conflict' });
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('Admins cannot be banned');
+    });
+  });
+
+  describe('banned members', () => {
+    it('lists banned users with when, by whom and why', async () => {
+      await loadPage([], [], [], [
+        { userId: 3, username: 'user2', bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: 'spamming' },
+      ]);
+      const text = panel('Banned Members').textContent?.replace(/\s+/g, ' ') ?? '';
+      expect(text).toContain('user2');
+      expect(text).toContain('banned 30 Sep 2026 by user1');
+      expect(text).toContain('reason: spamming');
+    });
+
+    it('shows accounts removed from Fabulari as "Removed user"', async () => {
+      await loadPage([], [], [], [{ userId: 9, username: null, bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: null }]);
+      expect(panel('Banned Members').textContent).toContain('Removed user');
+    });
+
+    it('shows an empty note and no unban option', async () => {
+      await loadPage();
+      expect(panel('Banned Members').textContent).toContain('Nobody has been banned from this group.');
+      expect(panel('Banned Members').querySelector('button')).toBeNull();
     });
   });
 

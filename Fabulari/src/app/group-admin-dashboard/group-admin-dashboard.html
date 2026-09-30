@@ -109,6 +109,25 @@
 
   <div class="card panel">
     <div class="card-body">
+      <div class="panel-title">Banned Members</div>
+      @for (ban of banned(); track ban.userId + '-' + ban.bannedAt) {
+        <div class="member-row banned-row">
+          <div class="member-name">
+            <div>{{ ban.username ?? 'Removed user' }}</div>
+            <div class="request-meta">
+              banned {{ ban.bannedAt | date: 'd MMM y' }}{{ ban.bannedByName ? ' by ' + ban.bannedByName : '' }}{{ ban.reason ? ' · reason: ' + ban.reason : '' }}
+            </div>
+          </div>
+          <span class="role-badge banned-badge">banned</span>
+        </div>
+      } @empty {
+        <p class="empty-note">Nobody has been banned from this group.</p>
+      }
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="card-body">
       <div class="panel-title">Channels</div>
       @for (room of rooms(); track room.id) {
         <div class="room-row">

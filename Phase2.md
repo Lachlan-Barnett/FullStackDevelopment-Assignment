@@ -108,7 +108,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-30 | Ask the super admin to remove a user from the whole system. | ✅ | From a report: **Ask super admin to remove from Fabulari** sends a removal request (the report becomes `escalated`). One pending request per user; not for your own reports or the super admin. |
 | FR-31 | Ask the super admin to delete the group. | ✅ | "Delete Group" panel → super admin approves or rejects. |
 | FR-32 | Raising the age limit removes members who are now too young. | ⏳ | Planned. |
-| FR-33 | See current and banned members of their group. | ✅ / ⏳ | Current members ✅; bans are recorded (FR-29) and a banned-members list on the dashboard is planned. |
+| FR-33 | See current and banned members of their group. | ✅ | Dashboard **Members** and **Banned Members** panels. The banned list shows username, date, who banned them and the report's reason — basic details only, no emails. Group bans are permanent, so there is no unban. |
 | FR-34 | Admins are marked in chat. | ✅ | Green **Admin** badge on messages and in the member list. |
 
 ### Super Admin
@@ -241,6 +241,7 @@ Uploaded files are served at `http://localhost:3000/uploads/...`. Message histor
 | POST | `/reports` | User | `{ groupId, username, reason }` | The report (`status: pending`). The reporter and the reported user must both be in the group. `400` reporting yourself. |
 | GET | `/groups/:groupId/reports` | Group admin | — | Pending reports in the group, each with `reporterName` and `reportedName`. |
 | PUT | `/groups/:groupId/reports/:reportId` | Group admin | `{ action: "ban" | "dismiss" }` | The updated report (`actioned` or `dismissed`). Ban removes the member, adds them to the group's ban list and records it in `bans`. `403` your own report; `409` the reported user is an admin, or already actioned. |
+| GET | `/groups/:groupId/banned` | Group admin | — | Users banned from the group, newest first: `[{ userId, username, bannedAt, bannedByName, reason }]`. `username` is `null` if the account was later removed from Fabulari. |
 | POST | `/groups/:groupId/reports/:reportId/escalate` | Group admin | — | Creates a system removal request from the report and marks the report `escalated`. `403` your own report / the super admin; `409` a request for this user is already pending. |
 
 ### Socket.IO events
@@ -313,7 +314,7 @@ The client is an Angular 22 standalone-component app. State is held in **signals
 | `ChangeUsername` | `/change-username` | New username. |
 | `ChangeBirthdate` | `/change-birthdate` | New birthdate. |
 | `Report` | `/report` | Report a member of one of your groups. |
-| `GroupAdminDashboard` | `/admin/group/:groupId` | Edit group details; approve/reject join requests; review reports (ban, ask the super admin to remove the user, or dismiss); members with promote/demote; channels; approve/reject channel requests; request group deletion. |
+| `GroupAdminDashboard` | `/admin/group/:groupId` | Edit group details; approve/reject join requests; review reports (ban, ask the super admin to remove the user, or dismiss); members with promote/demote; banned members; channels; approve/reject channel requests; request group deletion. |
 | `SuperAdminDashboard` | `/admin/super` | Approve/reject group requests, group deletion requests and user removal requests; all groups; all users; audit log (planned); Settings and Logout. |
 
 ### Services
@@ -339,7 +340,7 @@ The client is an Angular 22 standalone-component app. State is held in **signals
 | Model | Fields |
 |---|---|
 | `User` | `id, email, username, birthdate, role, profilePhoto?` |
-| `Group`, `GroupMember`, `GroupMemberDetails` | Group with `members: { userId, role }[]` and `isBanned`; details add `username`. |
+| `Group`, `GroupMember`, `GroupMemberDetails`, `BannedMember` | Group with `members: { userId, role }[]` and `isBanned`; details add `username`; a banned member has `username, bannedAt, bannedByName, reason`. |
 | `Room` | `id, groupId, name, description, createdAt?` |
 | `Message`, `PresentUser`, `PresenceEvent` | Chat message; a user in a room; joined/left notice. |
 | `JoinRequest`, `GroupRequest`, `RoomRequest`, `GroupDeleteRequest`, `SystemBanRequest` | Share `id, status, rejectionReason, reviewedBy, createdAt`. |
@@ -366,7 +367,7 @@ The Phase 1 wireframes still describe the layout; the screenshots below show the
 
 **Settings page.** The profile panel now shows the profile photo with Add/Change/Remove buttons. The Profile panel stays display-only; changes are made from the Settings panel's buttons.
 
-**Group admin dashboard** (new): panels for group details, join requests, reports, members, channels, channel requests and group deletion.
+**Group admin dashboard** (new): panels for group details, join requests, reports, members, banned members, channels, channel requests and group deletion.
 
 ![Group admin dashboard](Images/Phase2-Group-Admin-Dashboard.png)
 
@@ -394,7 +395,7 @@ Testing approach: every change is checked with the unit tests and a production b
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
-### Automated unit tests (92 tests, all passing)
+### Automated unit tests (95 tests, all passing)
 
 | Area | File | Tests |
 |---|---|---|
@@ -404,7 +405,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Groups | `groups.spec.ts` | Shows Admin, Pending, rejected reason and Apply · shows Banned with no Apply button · sends a join request and shows Pending · request form has labelled fields and the three colours · sends the group request and clears the form · needs a name · rejects a bad age limit · shows the server error |
 | My Requests | `my-requests.spec.ts` | Lists pending requests of every kind with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
 | Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows initial and "Add photo" · uploads a PNG and shows the photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
-| Group admin dashboard | `group-admin-dashboard.spec.ts` | Lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · marks you and disables demoting the only admin |
+| Group admin dashboard | `group-admin-dashboard.spec.ts` | Lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
 | Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists group requests · approves a group request · lists deletion requests with reasons · deletes after confirming · cancelling does nothing · rejects without confirming · **user removal:** lists who, email, requester, group and report · removes after confirming and refreshes users and groups · cancelling does nothing · shows the "only admin" error |
 | Guards | `group-admin.guard.spec.ts`, `not-super-admin.guard.spec.ts` | Admin allowed · member redirected · missing group redirected · logged-out redirected without a server call · normal users allowed · super admin redirected to the dashboard |
 | Other pages | `login`, `signup`, `report`, `change-password`, `change-username`, `change-birthdate` | Each page is created |
@@ -421,6 +422,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Super admin | 7 | Can't join groups or chat, even if added to a group directly |
 | Group deletion | 22 | Permissions, one pending request, reject, approve removes everything |
 | User removal | 24 | Escalating a report, permissions, one pending per user, approve deletes the account and photo and blocks login, old tokens and the email (any case), reject, only-admin protection, super admin can't be removed |
+| Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
 | Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
 | End-to-end (Chrome) | 45 | Chat 19 · photo 5 · super admin 8 · join 7 · request room 6 (including 2 on-screen layout checks) |
 
@@ -441,4 +443,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 92 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 95 unit tests plus scripted API, socket and browser checks |

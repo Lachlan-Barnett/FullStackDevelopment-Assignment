@@ -520,6 +520,28 @@ function initializeRoutes(app, db) {
     res.json({ ...report, ...changes });
   });
 
+  // Everyone banned from this group, newest first. Basic details only (no emails), per the client.
+  app.get('/api/groups/:groupId/banned', requireGroupAdmin, async (req, res) => {
+    const groupBans = await bans.find({ scope: 'group', groupId: req.group.id }, NO_ID).sort({ id: -1 }).toArray();
+    const reportIds = groupBans.map((b) => b.reportId);
+    const reasons = new Map(
+      (await reports.find({ id: { $in: reportIds } }, { projection: { _id: 0, id: 1, reason: 1 } }).toArray()).map((r) => [
+        r.id,
+        r.reason,
+      ]),
+    );
+    const named = await withUsernames(await withUsernames(groupBans, 'userId', 'username'), 'issuedBy', 'bannedByName');
+    res.json(
+      named.map((b) => ({
+        userId: b.userId,
+        username: b.username, // null if the account has since been removed from Fabulari
+        bannedAt: b.createdAt,
+        bannedByName: b.bannedByName,
+        reason: reasons.get(b.reportId) ?? null,
+      })),
+    );
+  });
+
   // A group admin can escalate a report: ask the super admin to remove the user from Fabulari entirely.
   app.post('/api/groups/:groupId/reports/:reportId/escalate', requireGroupAdmin, async (req, res) => {
     const group = req.group;
