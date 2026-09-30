@@ -8,6 +8,7 @@ import { ChangeUsername } from './change-username/change-username';
 import { ChangeBirthdate } from './change-birthdate/change-birthdate';
 import { Report } from './report/report';
 import { Groups } from './groups/groups';
+import { MyRequests } from './my-requests/my-requests';
 import { GroupAdminDashboard } from './group-admin-dashboard/group-admin-dashboard';
 import { SuperAdminDashboard } from './super-admin-dashboard/super-admin-dashboard';
 import { authGuard } from './guards/auth.guard';
@@ -26,6 +27,7 @@ export const routes: Routes = [
     { path: 'change-birthdate', component: ChangeBirthdate, title: 'Change Birthdate', canActivate: [authGuard] },
     { path: 'report', component: Report, title: 'Report', canActivate: [authGuard] },
     { path: 'groups', component: Groups, title: 'Groups', canActivate: [authGuard, notSuperAdminGuard] },
+    { path: 'requests', component: MyRequests, title: 'My Requests', canActivate: [authGuard, notSuperAdminGuard] },
     { path: 'admin/group/:groupId', component: GroupAdminDashboard, title: 'Group Admin', canActivate: [authGuard, groupAdminGuard] },
     { path: 'admin/super', component: SuperAdminDashboard, title: 'Super Admin', canActivate: [authGuard, superAdminGuard] },
 ];

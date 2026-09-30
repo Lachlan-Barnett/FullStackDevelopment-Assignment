@@ -1,0 +1,47 @@
+<div class="page-title-bar">
+  <h1 class="page-title">My Requests</h1>
+  <button type="button" class="back-btn" routerLink="/chat" aria-label="Back to chat">&lt;</button>
+</div>
+
+<div class="card requests-card">
+  <div class="card-body">
+    @if (errorMessage()) {
+      <p class="error-text" role="alert">{{ errorMessage() }}</p>
+    }
+
+    <h2 class="section-title">Pending</h2>
+    @for (row of pending(); track row.key) {
+      <div class="request-row">
+        <div class="request-main">
+          <span class="kind">{{ row.kind }}</span>
+          <span class="title">{{ row.title }}</span>
+        </div>
+        <span class="status status-pending">Waiting for review</span>
+        <time class="date" [attr.datetime]="row.createdAt">{{ row.createdAt | date: 'd MMM y' }}</time>
+      </div>
+    } @empty {
+      @if (loaded()) {
+        <p class="empty-note">Nothing waiting for review.</p>
+      }
+    }
+
+    <h2 class="section-title">Rejected</h2>
+    @for (row of rejected(); track row.key) {
+      <div class="request-row">
+        <div class="request-main">
+          <span class="kind">{{ row.kind }}</span>
+          <span class="title">{{ row.title }}</span>
+          <span class="reason">Reason: {{ row.rejectionReason || 'No reason given' }}</span>
+        </div>
+        <span class="status status-rejected">Rejected</span>
+        <time class="date" [attr.datetime]="row.createdAt">{{ row.createdAt | date: 'd MMM y' }}</time>
+      </div>
+    } @empty {
+      @if (loaded()) {
+        <p class="empty-note">No rejected requests.</p>
+      }
+    }
+
+    <p class="hint">Approved requests don't appear here &mdash; you'll just see the new group, room or membership.</p>
+  </div>
+</div>
