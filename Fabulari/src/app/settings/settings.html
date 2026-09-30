@@ -34,8 +34,8 @@
     <div class="card-body">
       <div class="panel-title">Settings</div>
       <div class="settings-row">
-        <span>Switch to Dark/Light Mode</span>
-        <input type="checkbox" [checked]="darkMode()" (change)="toggleTheme()">
+        <label for="dark-mode">Dark mode</label>
+        <input id="dark-mode" type="checkbox" role="switch" [checked]="darkMode()" (change)="toggleTheme()">
       </div>
       <button type="button" class="settings-row" routerLink="/change-password">
         <span>Change Password</span>

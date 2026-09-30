@@ -1,10 +1,10 @@
 <div class="page-title-bar">
   <span>Group Admin &mdash; {{ group()?.name ?? '...' }}</span>
-  <button type="button" class="back-btn" routerLink="/chat">&lt;</button>
+  <button type="button" class="back-btn" routerLink="/chat" aria-label="Back to chat">&lt;</button>
 </div>
 
 @if (errorMessage()) {
-  <p class="error-text">{{ errorMessage() }}</p>
+  <p class="error-text" role="alert">{{ errorMessage() }}</p>
 }
 
 <div class="dashboard-shell">

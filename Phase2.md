@@ -411,6 +411,20 @@ The Phase 1 wireframes still describe the layout; the screenshots below show the
 
 The login, signup, groups, change password and change username pages keep their Phase 1 wireframe layouts (see `Phase1.md`).
 
+**Accessibility.** The app was checked with **axe-core** (WCAG 2.0/2.1 levels A and AA) on all 13 pages in both light and dark mode — 26 page checks, all passing. Measures in place:
+
+| Area | What was done |
+|---|---|
+| Labels | Every form field has a `<label>` (visually hidden where the design has none); icon-only buttons (☰, <, >, +) have `aria-label`s such as "Settings", "Back to chat", "Send message". |
+| Show-password checkboxes | Each has its own id and label and controls only its own field (they previously shared one id, so clicking any label toggled the first box). |
+| State | Selected group/room/tab buttons expose `aria-pressed`; the panel toggles expose `aria-expanded`; the dark-mode checkbox is a labelled switch. |
+| Announcements | The message list is an `aria-live` log, so new messages are read out; errors use `role="alert"` and confirmations `role="status"`. |
+| Keyboard | A visible focus ring on every interactive element (`:focus-visible`), including custom buttons. |
+| Contrast | Grey helper text, badges, links and red/green outline buttons were adjusted in dark mode to meet AA contrast. |
+| Images | The logo and chat images have descriptive `alt` text ("Image sent by user1"); decorative avatars are hidden from screen readers. |
+| Safety | Destructive actions (deleting a room or group, banning, removing a user, leaving a group) ask for confirmation first. |
+| Forms | Login/signup/password fields have `autocomplete` hints so password managers and autofill work. |
+
 **Responsive design.** Desktop is the main target. Below 900px the side columns narrow and the message area shortens. ⏳ A fuller tablet layout is planned.
 
 ---
@@ -423,13 +437,14 @@ The login, signup, groups, change password and change username pages keep their 
 |---|---|---|
 | **Unit / component tests** (automated, in the repo) | Vitest through Angular's unit-test builder, jsdom, Angular `TestBed`, `HttpTestingController` | Components render the right things and send the right HTTP requests; guards; the socket service (with a fake socket). No server needed. Run with `npx ng test --watch=false`. |
 | **API and socket tests** (scripted) | Node scripts using `fetch` and `socket.io-client` against the real server and a freshly seeded MongoDB | Every endpoint's success and error cases, permissions, and socket behaviour (presence, history, images, photos, deletions). ⏳ Being moved into the repo as an automated test suite. |
+| **Accessibility audit** (scripted) | axe-core run by Puppeteer in headless Chrome | Every page, light and dark mode, WCAG 2.0/2.1 A and AA rules. |
 | **End-to-end tests** (scripted) | Puppeteer driving headless Chrome against `ng serve` + the server | Real user flows across two browser sessions: chatting, images, profile photos, joining a group, requesting a room, super admin routing. ⏳ To be added to the repo. |
 
 Testing approach: every change is checked with the unit tests and a production build, and server changes are checked against the running server with the scripted API tests. End-to-end runs confirm key flows in a real browser, and caught bugs that the unit tests missed (for example, the message box not clearing after sending).
 
 Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (Node 25+ has its own that doesn't work in tests), clears it before each test, and restores all spies after each test.
 
-### Automated unit tests (114 tests, all passing)
+### Automated unit tests (117 tests, all passing)
 
 | Area | File | Tests |
 |---|---|---|
@@ -439,10 +454,11 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Groups | `groups.spec.ts` | Shows Admin, Pending, rejected reason and Apply · shows Banned with no Apply button · **leaving:** Leave button only on your groups · leaves after confirming and reloads · cancelling does nothing · shows why the only admin can't leave · sends a join request and shows Pending · request form has labelled fields and the three colours · sends the group request and clears the form · needs a name · rejects a bad age limit · shows the server error |
 | My Requests | `my-requests.spec.ts` | Lists pending requests of every kind with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
 | Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows initial and "Add photo" · uploads a PNG and shows the photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
-| Group admin dashboard | `group-admin-dashboard.spec.ts` | **Group details:** warns about the age limit · saves and names anyone removed · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · **join requests:** lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · **editing channels:** inline form with current values · saves name and description · cancel doesn't save · needs a name · shows the duplicate-name error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
+| Group admin dashboard | `group-admin-dashboard.spec.ts` | **Group details:** warns about the age limit · saves and names anyone removed · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · **join requests:** lists join requests · empty note · approving adds the member · rejecting sends the reason · shows the server error · **reports:** lists who reported whom and why · bans after confirming and removes the member · cancelling does nothing · asks the super admin to remove the user · dismisses without banning · can't act on your own report · shows the server error · **editing channels:** inline form with current values · asks before deleting a channel · saves name and description · cancel doesn't save · needs a name · shows the duplicate-name error · can't action your own channel request · needs a reason to reject a channel request · sends a deletion request after confirming · cancelling does nothing · shows a pending deletion · shows why the last deletion was rejected · **banned members:** lists who, when, by whom and why · shows removed accounts as "Removed user" · empty note and no unban · marks you and disables demoting the only admin |
 | Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists group requests · approves a group request · lists deletion requests with reasons · deletes after confirming · cancelling does nothing · rejects without confirming · **user removal:** lists who, email, requester, group and report · removes after confirming and refreshes users and groups · cancelling does nothing · shows the "only admin" error · **audit log:** lists type, who and what · offers every type in the filter · filters by type · switches newest/oldest first · refreshes after the super admin acts |
 | Guards | `group-admin.guard.spec.ts`, `not-super-admin.guard.spec.ts` | Admin allowed · member redirected · missing group redirected · logged-out redirected without a server call · normal users allowed · super admin redirected to the dashboard |
-| Other pages | `login`, `signup`, `report`, `change-password`, `change-username`, `change-birthdate` | Each page is created |
+| Change password | `change-password.spec.ts` | Every field and checkbox has a unique id and its own label · each "Show" checkbox reveals only its own field · clicking a "Show" label toggles that checkbox only |
+| Other pages | `login`, `signup`, `report`, `change-username`, `change-birthdate` | Each page is created |
 
 ### Scripted API and socket checks
 
@@ -462,6 +478,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
 | Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
 | Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
+| Accessibility audit (axe-core in Chrome) | 26 | All 13 pages in light and dark mode against WCAG 2.0/2.1 A and AA — no violations |
 | End-to-end (Chrome) | 45 | Chat 19 · photo 5 · super admin 8 · join 7 · request room 6 (including 2 on-screen layout checks) |
 
 ---
@@ -481,4 +498,4 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Models | Copied into each component | Shared `models/` folder |
 | Message history endpoint | `GET /api/rooms/:roomId/messages` | Returned by the `room:join` socket event instead |
 | Group request field | `title` | `name` (matches the Group) |
-| Tests | Broken starter specs | 114 unit tests plus scripted API, socket and browser checks |
+| Tests | Broken starter specs | 117 unit tests plus scripted API, socket and browser checks |

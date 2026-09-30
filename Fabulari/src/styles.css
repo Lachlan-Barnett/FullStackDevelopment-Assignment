@@ -63,3 +63,79 @@ body.dark-theme .present-label,
 body.dark-theme .notice {
   color: #bbb;
 }
+
+
+/* Accessibility */
+
+/* A clear focus ring for keyboard users on every interactive element, including the custom buttons. */
+:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+}
+
+/* Hidden but still read by screen readers (Bootstrap provides this too; kept here so it never goes missing). */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Grey helper text (#666) is too faint on dark backgrounds; lighten it in dark mode. */
+body.dark-theme .empty-note,
+body.dark-theme .request-meta,
+body.dark-theme .group-meta,
+body.dark-theme .hint,
+body.dark-theme .form-hint,
+body.dark-theme .photo-hint,
+body.dark-theme .field-hint,
+body.dark-theme .room-request-hint,
+body.dark-theme .log-date,
+body.dark-theme .date,
+body.dark-theme .kind {
+  color: #c8c8c8;
+}
+
+body.dark-theme :focus-visible {
+  outline-color: #8ab4ff;
+}
+
+/* Badges with a light background keep dark text in dark mode; links get a lighter blue. */
+body.dark-theme .admin-badge,
+body.dark-theme .member-badge,
+body.dark-theme .role-admin {
+  color: #1a1a1a;
+}
+
+body.dark-theme a {
+  color: #8ab4ff;
+}
+
+/* Bootstrap's red/green outline buttons are too dim on dark cards. */
+body.dark-theme .btn-outline-danger {
+  color: #ff9c9c;
+  border-color: #ff9c9c;
+}
+
+body.dark-theme .btn-outline-success {
+  color: #7ee29a;
+  border-color: #7ee29a;
+}
+
+body.dark-theme .btn-outline-danger:hover,
+body.dark-theme .btn-outline-success:hover {
+  color: #1a1a1a;
+}
+
+body.dark-theme .btn-outline-danger:hover {
+  background-color: #ff9c9c;
+}
+
+body.dark-theme .btn-outline-success:hover {
+  background-color: #7ee29a;
+}

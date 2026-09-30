@@ -1,15 +1,15 @@
 <div class="chat-shell card chat-card">
 
   <button type="button" class="logout" (click)="logout()">Logout</button>
-  <button type="button" class="settings" routerLink="/settings">&#9776;</button>
+  <button type="button" class="settings" routerLink="/settings" aria-label="Settings">&#9776;</button>
 
   <div class="panel-title group-name-bar">{{ selectedGroup()?.name ?? 'No Group Selected' }}</div>
 
   <div class="toggle-row">
-    <button type="button" class="groups-toggle" (click)="toggleGroups()">
+    <button type="button" class="groups-toggle" (click)="toggleGroups()" [attr.aria-label]="showGroups() ? 'Hide groups and rooms' : 'Show groups and rooms'" [attr.aria-expanded]="showGroups()">
       {{ showGroups() ? '&lt;' : '&gt;' }}
     </button>
-    <button type="button" class="description-toggle" (click)="toggleDescription()">
+    <button type="button" class="description-toggle" (click)="toggleDescription()" [attr.aria-label]="showDescription() ? 'Hide group info' : 'Show group info'" [attr.aria-expanded]="showDescription()">
       {{ showDescription() ? '&gt;' : '&lt;' }}
     </button>
   </div>
@@ -19,7 +19,7 @@
       <aside class="groups-col">
         <div class="panel-title">Groups</div>
         @for (group of myGroups(); track group.id) {
-          <button type="button" class="list-btn" [class.selected]="selectedGroupId() === group.id" (click)="selectGroup(group.id)">
+          <button type="button" class="list-btn" [class.selected]="selectedGroupId() === group.id" [attr.aria-pressed]="selectedGroupId() === group.id" (click)="selectGroup(group.id)">
             {{ group.name }}
           </button>
         } @empty {
@@ -31,7 +31,7 @@
       <aside class="rooms-col">
         <div class="panel-title">Rooms</div>
         @for (room of rooms(); track room.id) {
-          <button type="button" class="list-btn" [class.selected]="selectedRoomId() === room.id" (click)="selectRoom(room.id)">
+          <button type="button" class="list-btn" [class.selected]="selectedRoomId() === room.id" [attr.aria-pressed]="selectedRoomId() === room.id" (click)="selectRoom(room.id)">
             {{ room.name }}
           </button>
         } @empty {
@@ -168,10 +168,10 @@
 
     @if (showDescription()) {
       <aside class="info-col">
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'info'" (click)="setInfoTab('info')">Group Info</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'age'" (click)="setInfoTab('age')">Age Limit</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'colour'" (click)="setInfoTab('colour')">Colour Theme</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'members'" (click)="setInfoTab('members')">Members</button>
+        <button type="button" class="list-btn" [class.selected]="infoTab() === 'info'" [attr.aria-pressed]="infoTab() === 'info'" (click)="setInfoTab('info')">Group Info</button>
+        <button type="button" class="list-btn" [class.selected]="infoTab() === 'age'" [attr.aria-pressed]="infoTab() === 'age'" (click)="setInfoTab('age')">Age Limit</button>
+        <button type="button" class="list-btn" [class.selected]="infoTab() === 'colour'" [attr.aria-pressed]="infoTab() === 'colour'" (click)="setInfoTab('colour')">Colour Theme</button>
+        <button type="button" class="list-btn" [class.selected]="infoTab() === 'members'" [attr.aria-pressed]="infoTab() === 'members'" (click)="setInfoTab('members')">Members</button>
 
         @if (infoTab() === 'members') {
           <ul class="info-box member-list" aria-label="Group members">

@@ -229,6 +229,14 @@ describe('GroupAdminDashboard', () => {
       expect(panel('Channels').textContent).toContain('start — fixed');
     });
 
+    it('asks before deleting a channel', async () => {
+      await load();
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      panel('Channels').querySelector<HTMLButtonElement>('button[aria-label="Delete strat"]')!.click();
+      expect(confirmSpy).toHaveBeenCalled();
+      http.expectNone(`${API_URL}/groups/1/rooms/1`);
+    });
+
     it('cancel closes the form without saving', async () => {
       await load();
       editButton().click();

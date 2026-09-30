@@ -62,7 +62,7 @@
     <div class="card-body">
         <div class="panel-title">Groups</div>
         @if (errorMessage()) {
-            <p class="error-text">{{ errorMessage() }}</p>
+            <p class="error-text" role="alert">{{ errorMessage() }}</p>
         }
         @for (group of groups(); track group.id) {
             <div class="group-row">

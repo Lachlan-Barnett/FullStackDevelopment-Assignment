@@ -4,11 +4,11 @@
     <form (ngSubmit)="onSubmit()">
       <div class="form-field">
         <label for="email" class="form-label">Email</label>
-        <input type="email" class="form-control" id="email" name="email" [(ngModel)]="email">
+        <input type="email" class="form-control" id="email" name="email" autocomplete="email" required [(ngModel)]="email">
       </div>
       <div class="form-field">
         <label for="username" class="form-label">Username</label>
-        <input type="text" class="form-control" id="username" name="username" [(ngModel)]="username">
+        <input type="text" class="form-control" id="username" name="username" autocomplete="username" required [(ngModel)]="username">
       </div>
       <div class="form-field">
         <label for="dob" class="form-label">Date of Birth</label>
@@ -16,11 +16,11 @@
       </div>
       <div class="form-field">
         <label for="password" class="form-label">Password</label>
-        <input [type]="showPassword() ? 'text' : 'password'" class="form-control" id="password" name="password" [(ngModel)]="password">
+        <input [type]="showPassword() ? 'text' : 'password'" class="form-control" id="password" name="password" autocomplete="new-password" required [(ngModel)]="password">
       </div>
       <div class="form-check text-start">
-        <input type="checkbox" class="form-check-input" id="visbility-check-box" (change)="togglePasswordVisibility()">
-        <label class="form-check-label" for="visbility-check-box">Show password</label>
+        <input type="checkbox" class="form-check-input" id="show-password" aria-controls="password" (change)="togglePasswordVisibility()">
+        <label class="form-check-label" for="show-password">Show password</label>
       </div>
       @if (errorMessage()) {
         <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>

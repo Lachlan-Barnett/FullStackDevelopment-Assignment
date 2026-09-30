@@ -301,6 +301,7 @@ export class GroupAdminDashboard {
   deleteRoom(room: Room) {
     const group = this.group();
     if (!group) return;
+    if (!confirm(`Delete the room "${room.name}"? Its messages are deleted too.`)) return;
 
     this.http.delete(`${API_URL}/groups/${group.id}/rooms/${room.id}`).subscribe({
       next: () => this.loadRooms(group.id),
