@@ -72,7 +72,7 @@ The requirements come from the client Q&A (see `3813ICT Assignment Specification
 | FR-4 | Change password: old password once, new password twice, checked on the server. | ✅ | The server checks all three fields, that the two new passwords match, and the old password against the hash. |
 | FR-5 | No password recovery — a forgotten password means a new account. | ✅ | By design; no recovery endpoint. |
 | FR-6 | Light / dark mode. | ✅ | Toggle in Settings; saved in the browser and applied at start-up. |
-| FR-7 | Desktop first; tablet is a bonus. | ✅ / ⏳ | Desktop layout complete; tablet layout tidy-up planned. |
+| FR-7 | Desktop first; tablet is a bonus. | ✅ | Desktop and tablet (portrait and landscape) layouts, checked automatically at five screen sizes. |
 | FR-8 | PNG image messages, max 2MB. | ✅ | Upload endpoint checks the PNG file signature (first 8 bytes), not just the name, and rejects files over 2MB. |
 | FR-9 | Groups have no profile picture. | ✅ | Identity is name, description and colour theme. |
 | FR-10 | Links are shown as plain text, never as clickable links. | ✅ | Messages are rendered with Angular text interpolation, so HTML and URLs are displayed as text. |
@@ -425,7 +425,9 @@ The login, signup, groups, change password and change username pages keep their 
 | Safety | Destructive actions (deleting a room or group, banning, removing a user, leaving a group) ask for confirmation first. |
 | Forms | Login/signup/password fields have `autocomplete` hints so password managers and autofill work. |
 
-**Responsive design.** Desktop is the main target. Below 900px the side columns narrow and the message area shortens. ⏳ A fuller tablet layout is planned.
+**Responsive design.** Desktop is the main target and tablets are supported. The chat page is a full-height flex layout: the card fills the screen (using `dvh` so tablet browser toolbars are allowed for), the side columns scroll on their own, and the message list takes whatever height is left — so the message box stays on screen whatever is shown above it (the Manage Group button, the room request form, the group info panel). Below 900px wide the side columns narrow; below 740px the Settings panels stack and fixed-width pages keep a 16px gutter. An automated check at laptop (1400×900, 1280×800) and iPad (1024×768 landscape, 768×1024 and 820×1180 portrait) sizes confirms the key controls are on screen and nothing scrolls sideways.
+
+![Chat on an iPad in portrait, group info open](Images/Phase2-Chat-Tablet-Portrait.png)
 
 ---
 
@@ -437,6 +439,7 @@ The login, signup, groups, change password and change username pages keep their 
 |---|---|---|
 | **Unit / component tests** (automated, in the repo) | Vitest through Angular's unit-test builder, jsdom, Angular `TestBed`, `HttpTestingController` | Components render the right things and send the right HTTP requests; guards; the socket service (with a fake socket). No server needed. Run with `npx ng test --watch=false`. |
 | **API and socket tests** (scripted) | Node scripts using `fetch` and `socket.io-client` against the real server and a freshly seeded MongoDB | Every endpoint's success and error cases, permissions, and socket behaviour (presence, history, images, photos, deletions). ⏳ Being moved into the repo as an automated test suite. |
+| **Layout checks** (scripted) | Puppeteer at desktop and tablet screen sizes | Key controls stay on screen and pages don't scroll sideways. |
 | **Accessibility audit** (scripted) | axe-core run by Puppeteer in headless Chrome | Every page, light and dark mode, WCAG 2.0/2.1 A and AA rules. |
 | **End-to-end tests** (scripted) | Puppeteer driving headless Chrome against `ng serve` + the server | Real user flows across two browser sessions: chatting, images, profile photos, joining a group, requesting a room, super admin routing. ⏳ To be added to the repo. |
 
@@ -478,6 +481,7 @@ Shared test setup (`src/test-setup.ts`): provides an in-memory `localStorage` (N
 | Age limit | 18 | Validation, raising removes only members under the limit (exactly-18 kept), pending under-age applicants rejected, removed members can't chat, lowering removes nobody, no-admin refusal leaves everything unchanged, younger admin removed when an older admin remains |
 | Banned members list | 7 | Admin-only, lists who/when/by whom/why, newest first, no emails |
 | Reports and bans | 20 | Permissions, ban removes the member and blocks rooms, chat and reapplying, ban record, dismiss, no self-review, admins can't be banned, ban list kept private |
+| Layout (Chrome at 5 screen sizes) | 70 | Message box, send, Request room and Manage Group on screen; message box stays visible with the request form or info panel open; no sideways scrolling on chat, groups, requests, settings, dashboard or change-password |
 | Accessibility audit (axe-core in Chrome) | 26 | All 13 pages in light and dark mode against WCAG 2.0/2.1 A and AA — no violations |
 | End-to-end (Chrome) | 45 | Chat 19 · photo 5 · super admin 8 · join 7 · request room 6 (including 2 on-screen layout checks) |
 

@@ -139,3 +139,16 @@ body.dark-theme .btn-outline-danger:hover {
 body.dark-theme .btn-outline-success:hover {
   background-color: #7ee29a;
 }
+
+/* Narrow screens: keep a gutter on the fixed-width pages instead of running edge to edge. */
+@media (max-width: 740px) {
+  .page-title-bar,
+  .groups-card,
+  .requests-card,
+  .dashboard-shell,
+  .settings-shell,
+  .top-bar {
+    margin-left: 16px !important;
+    margin-right: 16px !important;
+  }
+}

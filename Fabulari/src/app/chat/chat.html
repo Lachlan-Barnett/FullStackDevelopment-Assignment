@@ -97,7 +97,7 @@
         </div>
       }
 
-      <div class="messages-list" [class.compact]="showRoomRequest()" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
+      <div class="messages-list" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
         @for (item of feed(); track item.key) {
           @if (item.kind === 'notice') {
             <div class="notice">{{ item.text }}</div>

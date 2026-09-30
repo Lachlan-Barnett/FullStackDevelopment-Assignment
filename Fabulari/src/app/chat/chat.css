@@ -1,14 +1,21 @@
+/* The chat card fills the screen below the logo. Everything inside is a flex layout, so the message
+   list takes whatever height is left and the message box always stays on screen, on desktop and tablet. */
 .chat-shell {
   text-align: left;
   position: relative;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: calc(100vw - 20px);
   height: calc(100vh - 110px);
+  height: calc(100dvh - 110px); /* dvh = the visible height on tablets with browser toolbars */
   margin: 1rem auto;
   font-size: clamp(0.8rem, 1.2vw, 1rem);
+  display: flex;
+  flex-direction: column;
 }
 
 .card-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   gap: 0.75rem;
   align-items: stretch;
@@ -24,10 +31,14 @@
   gap: 0.5rem;
   margin-top: 0.5rem;
   margin-left: 0.25rem;
+  min-height: 0;
+  overflow-y: auto; /* long group/room lists scroll inside their column */
 }
+
 .messages-col {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   margin-top: 0rem;
@@ -105,7 +116,8 @@
   border: 2px solid #333;
   border-radius: 8px;
   padding: 0.75rem;
-  height: 65vh;
+  flex: 1;
+  min-height: 8rem;
   margin-top: 0.5rem;
   overflow-y: auto;
   display: flex;
@@ -273,7 +285,7 @@ cursor: pointer;
     font-size: clamp(0.7rem, 1vw, 1rem);
   }
 
-  .messages-list, .info-box {
+  .info-box {
     height: 50vh;
   }
 }
@@ -308,10 +320,6 @@ cursor: pointer;
   font-size: 0.85rem;
 }
 
-/* Leave room for the request form above the messages so the message box stays on screen. */
-.messages-list.compact {
-  height: 48vh;
-}
 
 .room-request-form {
   border: 2px solid #333;

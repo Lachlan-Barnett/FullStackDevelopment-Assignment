@@ -93,3 +93,10 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* Tablet portrait and narrower: stack the Profile and Settings panels. */
+@media (max-width: 740px) {
+  .settings-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
