@@ -55,7 +55,7 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 | FR-23 | Group admins edit the group's description, age limit and colour theme. | The name cannot be changed. Colours are limited to the logo colours Blue, Yellow and Red. The age limit is a whole number from 0 to 120. |
 | FR-24 | The group's colour theme applies to its rooms. | The chat area is tinted with the group's colour. |
 | FR-25 | A user can be admin of any number of groups. | The role is stored on each group membership. |
-| FR-26 | Group admins approve room requests, or reject them with a reason. | Admins cannot approve their own requests, as the client ruled out self-approval. |
+| FR-26 | Group admins approve room requests, or reject them with a reason. | Admins can also approve or reject their own room requests. |
 | FR-27 | Group admins edit a room's name and description. | Room names stay unique within the group, ignoring case. The room keeps its messages. |
 | FR-28 | Group admins promote members and demote admins. A group always keeps at least one admin. | Any admin can demote any admin, including themselves, unless they are the last one. |
 | FR-29 | Group admins ban users from their group, based on a report. | Members report other members. A group admin reviews each report and bans or dismisses it. Bans are permanent and remove the user from the group. Admins cannot act on reports they filed, and admins must be demoted before they can be banned. |
@@ -264,7 +264,7 @@ Common error codes: `400` invalid input, `401` not logged in, `403` not allowed,
 | POST | /api/groups/:groupId/room-requests | Ask for a new room with `{ name, description }`. | Member |
 | GET | /api/room-requests/mine | Your room requests. | User |
 | GET | /api/groups/:groupId/room-requests | Pending room requests with the requester's name. | Group admin |
-| PUT | /api/groups/:groupId/room-requests/:requestId | Decide with `{ approve, reason }`. Rejecting needs a reason. Approving creates the room. `403` for your own request. | Group admin |
+| PUT | /api/groups/:groupId/room-requests/:requestId | Decide with `{ approve, reason }`. Rejecting needs a reason. Approving creates the room. | Group admin |
 
 
 ### Messages
@@ -493,7 +493,7 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `group-admin-dashboard.spec.ts` | cancel closes the form without saving | Passed |
 | `group-admin-dashboard.spec.ts` | needs a name | Passed |
 | `group-admin-dashboard.spec.ts` | shows the server error, e.g. a duplicate name | Passed |
-| `group-admin-dashboard.spec.ts` | can't action your own request | Passed |
+| `group-admin-dashboard.spec.ts` | can action your own request | Passed |
 | `group-admin-dashboard.spec.ts` | needs a reason to reject | Passed |
 | `group-admin-dashboard.spec.ts` | lists reports with who reported whom and why | Passed |
 | `group-admin-dashboard.spec.ts` | bans after confirming and removes the member | Passed |

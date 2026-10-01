@@ -279,12 +279,11 @@ describe('GroupAdminDashboard', () => {
   });
 
   describe('channel requests', () => {
-    it("can't action your own request", async () => {
+    it('can action your own request', async () => {
       await loadPage();
       const cards = [...panel('Channel Requests').querySelectorAll('.request-card')];
       expect(cards[0].querySelector('button')).not.toBeNull(); // user2's request
-      expect(cards[1].textContent).toContain('another admin must review it'); // user1's own
-      expect(cards[1].querySelector('button')).toBeNull();
+      expect(cards[1].querySelector('button')).not.toBeNull(); // user1's own
     });
 
     it('needs a reason to reject', async () => {

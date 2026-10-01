@@ -543,9 +543,6 @@ function initializeRoutes(app, db) {
     const request = await roomRequests.findOne({ id: Number(req.params.requestId), groupId }, NO_ID);
     if (!request) return res.status(404).json({ message: 'Request not found' });
     if (request.status !== 'pending') return res.status(409).json({ message: 'Request already actioned' });
-    if (request.requestedBy === req.user.id) {
-      return res.status(403).json({ message: 'Another admin must review your own request' });
-    }
 
     const approve = req.body.approve === true;
 

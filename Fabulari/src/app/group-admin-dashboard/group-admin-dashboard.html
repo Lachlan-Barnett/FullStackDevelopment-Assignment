@@ -166,21 +166,17 @@
             <span class="request-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
           </div>
           <div class="request-meta">{{ request.description || 'No description' }}</div>
-          @if (isOwnRequest(request)) {
-            <div class="request-meta">This is your own request &mdash; another admin must review it.</div>
-          } @else {
-            <div class="request-actions">
-              <input
-                type="text"
-                class="form-control form-control-sm"
-                placeholder="Reason (required to reject)"
-                [attr.aria-label]="'Rejection reason for ' + request.name"
-                [(ngModel)]="rejectReasons[request.id]"
-              >
-              <button type="button" class="btn btn-sm btn-outline-success" (click)="actionRoomRequest(request, true)">Approve</button>
-              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRoomRequest(request, false)">Reject</button>
-            </div>
-          }
+          <div class="request-actions">
+            <input
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="Reason (required to reject)"
+              [attr.aria-label]="'Rejection reason for ' + request.name"
+              [(ngModel)]="rejectReasons[request.id]"
+            >
+            <button type="button" class="btn btn-sm btn-outline-success" (click)="actionRoomRequest(request, true)">Approve</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRoomRequest(request, false)">Reject</button>
+          </div>
         </div>
       } @empty {
         <p class="empty-note">No pending channel requests.</p>

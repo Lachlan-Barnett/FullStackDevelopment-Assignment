@@ -262,10 +262,6 @@ export class GroupAdminDashboard {
       });
   }
 
-  isOwnRequest(request: RoomRequest) {
-    return request.requestedBy === this.currentUserId();
-  }
-
   // Inline editing of one channel at a time.
   protected readonly editingRoomId = signal<number | null>(null);
   protected readonly editRoomName = signal('');
