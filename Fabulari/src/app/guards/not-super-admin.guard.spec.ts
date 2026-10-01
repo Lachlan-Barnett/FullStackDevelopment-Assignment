@@ -7,7 +7,10 @@ import { AuthService } from '../services/auth.service';
 describe('notSuperAdminGuard', () => {
   function run(isSuperAdmin: boolean) {
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: AuthService, useValue: { isSuperAdmin: signal(isSuperAdmin) } }],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { isSuperAdmin: signal(isSuperAdmin) } },
+      ],
     });
     return TestBed.runInInjectionContext(() =>
       notSuperAdminGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),

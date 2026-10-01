@@ -1,10 +1,20 @@
 // User: Settings pages (U23 to U26)
 describe('User: Settings pages', () => {
-  it('U23: dark mode is saved', () => {
+  it('U23: dark mode is saved on the account', () => {
     cy.loginAs('user2@com.au', '/settings');
     cy.get('#dark-mode').check();
     cy.get('body').should('have.class', 'dark-theme');
     cy.reload();
+    cy.get('body').should('have.class', 'dark-theme');
+
+    // Logging out is light; logging in again (as if on another computer) brings dark mode back.
+    cy.visit('/chat');
+    cy.get('.logout').click();
+    cy.get('body').should('not.have.class', 'dark-theme');
+    cy.get('#login').type('user2');
+    cy.get('#password').type('123');
+    cy.get('button[type=submit]').click();
+    cy.location('pathname').should('eq', '/chat');
     cy.get('body').should('have.class', 'dark-theme');
   });
 
@@ -39,7 +49,7 @@ describe('User: Settings pages', () => {
 
     cy.clearLocalStorage();
     cy.visit('/');
-    cy.get('#email').type('user2@com.au');
+    cy.get('#login').type('user2@com.au');
     cy.get('#password').type('abc123');
     cy.get('button[type=submit]').click();
     cy.location('pathname').should('eq', '/chat');
@@ -47,7 +57,9 @@ describe('User: Settings pages', () => {
 
   it('U26: adds and removes a profile photo', () => {
     cy.loginAs('user2@com.au', '/settings');
-    cy.get('.photo-actions input[type=file]').selectFile('cypress/fixtures/sample.png', { force: true });
+    cy.get('.photo-actions input[type=file]').selectFile('cypress/fixtures/sample.png', {
+      force: true,
+    });
     cy.get('img.avatar-large').should('be.visible');
 
     cy.visit('/chat');

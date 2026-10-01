@@ -1,101 +1,194 @@
 <div class="page-title-bar">
-    <span>Groups</span>
-    <span class="title-actions">
-        <a class="requests-link" routerLink="/requests">My requests</a>
-        <button type="button" class="back-btn" routerLink="/chat" aria-label="Back to chat">&lt;</button>
-    </span>
+  <span>Groups</span>
+  <span class="title-actions">
+    <a class="requests-link" routerLink="/requests">My requests</a>
+    <button type="button" class="back-btn" routerLink="/chat" aria-label="Back to chat">
+      &lt;
+    </button>
+  </span>
 </div>
 
 <div class="card groups-card request-card">
-    <div class="card-body">
-        <button
-            type="button"
-            class="btn btn-outline-dark w-100"
-            [attr.aria-expanded]="showRequestForm()"
-            aria-controls="group-request-form"
-            (click)="toggleRequestForm()"
-        >
-            {{ showRequestForm() ? 'Cancel' : 'Request a new group' }}
+  <div class="card-body">
+    <button
+      type="button"
+      class="btn btn-outline-dark w-100"
+      [attr.aria-expanded]="showRequestForm()"
+      aria-controls="group-request-form"
+      (click)="toggleRequestForm()"
+    >
+      {{ showRequestForm() ? 'Cancel' : 'Request a new group' }}
+    </button>
+
+    @if (requestSuccess()) {
+      <div class="alert alert-success mt-2 mb-0" role="status">{{ requestSuccess() }}</div>
+    }
+
+    @if (showRequestForm()) {
+      <form
+        id="group-request-form"
+        class="request-form"
+        (ngSubmit)="submitGroupRequest()"
+        novalidate
+        animate.enter="fade-in"
+      >
+        <p class="form-hint">
+          The super admin reviews each request. If it's approved, you become the group's admin.
+        </p>
+        <div class="form-field">
+          <label for="newGroupName" class="form-label">Group name</label>
+          <input
+            id="newGroupName"
+            name="newGroupName"
+            type="text"
+            class="form-control"
+            [maxlength]="limits.name"
+            required
+            [(ngModel)]="newGroupName"
+          />
+        </div>
+        <div class="form-field">
+          <label for="newGroupDescription" class="form-label">Description</label>
+          <textarea
+            id="newGroupDescription"
+            name="newGroupDescription"
+            class="form-control"
+            rows="2"
+            [maxlength]="limits.description"
+            [(ngModel)]="newGroupDescription"
+          ></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label for="newGroupAgeLimit" class="form-label">Minimum age</label>
+            <input
+              id="newGroupAgeLimit"
+              name="newGroupAgeLimit"
+              type="number"
+              class="form-control"
+              min="0"
+              max="120"
+              step="1"
+              [(ngModel)]="newGroupAgeLimit"
+            />
+          </div>
+          <div class="form-field">
+            <label for="newGroupColour" class="form-label">Colour theme</label>
+            <select
+              id="newGroupColour"
+              name="newGroupColour"
+              class="form-control"
+              [(ngModel)]="newGroupColour"
+            >
+              @for (theme of colourThemes; track theme) {
+                <option [ngValue]="theme">{{ theme }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        @if (requestError()) {
+          <div class="alert alert-danger" role="alert">{{ requestError() }}</div>
+        }
+        <button type="submit" class="btn btn-dark w-100" [disabled]="requestSending()">
+          {{ requestSending() ? 'Sending…' : 'Send request' }}
         </button>
-
-        @if (requestSuccess()) {
-            <div class="alert alert-success mt-2 mb-0" role="status">{{ requestSuccess() }}</div>
-        }
-
-        @if (showRequestForm()) {
-            <form id="group-request-form" class="request-form" (ngSubmit)="submitGroupRequest()">
-                <p class="form-hint">The super admin reviews each request. If it's approved, you become the group's admin.</p>
-                <div class="form-field">
-                    <label for="newGroupName" class="form-label">Group name</label>
-                    <input id="newGroupName" name="newGroupName" type="text" class="form-control" maxlength="60" required [(ngModel)]="newGroupName">
-                </div>
-                <div class="form-field">
-                    <label for="newGroupDescription" class="form-label">Description</label>
-                    <textarea id="newGroupDescription" name="newGroupDescription" class="form-control" rows="2" maxlength="300" [(ngModel)]="newGroupDescription"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-field">
-                        <label for="newGroupAgeLimit" class="form-label">Minimum age</label>
-                        <input id="newGroupAgeLimit" name="newGroupAgeLimit" type="number" class="form-control" min="0" max="120" step="1" [(ngModel)]="newGroupAgeLimit">
-                    </div>
-                    <div class="form-field">
-                        <label for="newGroupColour" class="form-label">Colour theme</label>
-                        <select id="newGroupColour" name="newGroupColour" class="form-control" [(ngModel)]="newGroupColour">
-                            @for (theme of colourThemes; track theme) {
-                                <option [ngValue]="theme">{{ theme }}</option>
-                            }
-                        </select>
-                    </div>
-                </div>
-                @if (requestError()) {
-                    <div class="alert alert-danger" role="alert">{{ requestError() }}</div>
-                }
-                <button type="submit" class="btn btn-dark w-100" [disabled]="requestSending()">
-                    {{ requestSending() ? 'Sending…' : 'Send request' }}
-                </button>
-            </form>
-        }
-    </div>
+      </form>
+    }
+  </div>
 </div>
 
 <div class="card groups-card">
-    <div class="card-body">
-        <div class="panel-title">Groups</div>
-        @if (errorMessage()) {
-            <p class="error-text" role="alert">{{ errorMessage() }}</p>
-        }
-        @for (group of groups(); track group.id) {
-            <div class="group-row">
-                <div class="group-details">
-                    <span class="group-name">{{ group.name }}</span>
-                    <span class="group-meta">{{ group.description }} &middot; Age {{ group.ageLimit }}+ &middot; {{ group.colourTheme }}</span>
-                    @if (status(group) === 'rejected') {
-                        <span class="rejected-note">Request rejected{{ latestRequest(group)?.rejectionReason ? ': ' + latestRequest(group)?.rejectionReason : '' }}</span>
-                    }
-                </div>
-                @switch (status(group)) {
-                    @case ('admin') {
-                        <span class="admin-badge">Admin</span>
-                        <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Leave ' + group.name" (click)="leave(group)">Leave</button>
-                    }
-                    @case ('member') {
-                        <span class="member-badge">Member</span>
-                        <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Leave ' + group.name" (click)="leave(group)">Leave</button>
-                    }
-                    @case ('banned') {
-                        <span class="banned-badge" title="You were banned from this group after a report">Banned</span>
-                    }
-                    @case ('pending') {
-                        <button type="button" class="btn btn-sm btn-outline-dark" disabled>Pending</button>
-                    }
-                    @case ('rejected') {
-                        <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">Apply again</button>
-                    }
-                    @default {
-                        <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">Apply</button>
-                    }
-                }
-            </div>
-        }
+  <div class="card-body">
+    <div class="panel-title">Groups</div>
+    <div class="search-row">
+      <label for="groupSearch" class="visually-hidden">Search groups</label>
+      <input
+        id="groupSearch"
+        type="search"
+        class="form-control"
+        placeholder="Search groups by name or description"
+        autocomplete="off"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+      <span class="search-count" aria-live="polite"
+        >{{ filteredGroups().length }} of {{ groups().length }} groups</span
+      >
     </div>
+    @if (errorMessage()) {
+      <p class="error-text" role="alert">{{ errorMessage() }}</p>
+    }
+    <div class="scroll-list">
+      @for (group of filteredGroups(); track group.id) {
+        <div class="group-row" animate.enter="fade-in">
+          <div class="group-details">
+            <span class="group-name">{{ group.name }}</span>
+            <span class="group-meta"
+              >{{ group.description }} &middot; Age {{ group.ageLimit }}+ &middot;
+              {{ group.colourTheme }}</span
+            >
+            @if (status(group) === 'rejected') {
+              <span class="rejected-note"
+                >Request rejected{{
+                  latestRequest(group)?.rejectionReason
+                    ? ': ' + latestRequest(group)?.rejectionReason
+                    : ''
+                }}</span
+              >
+            }
+          </div>
+          @switch (status(group)) {
+            @case ('admin') {
+              <span class="admin-badge">Admin</span>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                [attr.aria-label]="'Leave ' + group.name"
+                (click)="leave(group)"
+              >
+                Leave
+              </button>
+            }
+            @case ('member') {
+              <span class="member-badge">Member</span>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                [attr.aria-label]="'Leave ' + group.name"
+                (click)="leave(group)"
+              >
+                Leave
+              </button>
+            }
+            @case ('banned') {
+              <span class="banned-badge" title="You were banned from this group after a report"
+                >Banned</span
+              >
+            }
+            @case ('pending') {
+              <button type="button" class="btn btn-sm btn-outline-dark" disabled>Pending</button>
+            }
+            @case ('rejected') {
+              <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">
+                Apply again
+              </button>
+            }
+            @default {
+              <button type="button" class="btn btn-sm btn-outline-dark" (click)="apply(group)">
+                Apply
+              </button>
+            }
+          }
+        </div>
+      } @empty {
+        <p class="empty-note">
+          {{
+            search().trim()
+              ? 'No groups match "' + search().trim() + '".'
+              : 'There are no groups yet.'
+          }}
+        </p>
+      }
+    </div>
+  </div>
 </div>

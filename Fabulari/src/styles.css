@@ -1,6 +1,6 @@
 body.dark-theme {
-    background-color: #1a1a1a;
-    color: #f1f1f1;
+  background-color: #1a1a1a;
+  color: #f1f1f1;
 }
 
 body.dark-theme .card,
@@ -17,7 +17,7 @@ body.dark-theme .logout,
 body.dark-theme .settings,
 body.dark-theme .description-toggle,
 body.dark-theme .groups-toggle {
-background-color: #2a2a2a;
+  background-color: #2a2a2a;
   color: #f1f1f1;
   border-color: #555;
 }
@@ -54,16 +54,11 @@ body.dark-theme .message-body {
   border-color: #555;
 }
 
-body.dark-theme .message.mine .message-body {
-  background: #1d3557;
-}
-
 body.dark-theme .timestamp,
 body.dark-theme .present-label,
 body.dark-theme .notice {
   color: #bbb;
 }
-
 
 /* Accessibility */
 
@@ -151,4 +146,233 @@ body.dark-theme .btn-outline-success:hover {
     margin-left: 16px !important;
     margin-right: 16px !important;
   }
+}
+
+/* Animations, used with Angular's animate.enter / animate.leave (e.g. new messages, request cards, pop-ups).
+   They are short and subtle, and switched off for anyone whose system asks for less motion. */
+@keyframes fab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fab-fade-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes fab-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fab-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fab-typing-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.fade-in {
+  animation: fab-fade-in 0.25s ease-out;
+}
+.fade-out {
+  animation: fab-fade-out 0.2s ease-in forwards;
+}
+.slide-in {
+  animation: fab-slide-in 0.3s ease-out;
+}
+.message-in {
+  animation: fab-message-in 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .fade-out,
+  .slide-in,
+  .message-in,
+  .typing-dots span {
+    animation: none !important;
+  }
+}
+
+/* Long lists (members, users, groups, the audit log) scroll inside their panel, so pages stay short
+   however much data there is. */
+.scroll-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.audit-list {
+  max-height: 520px;
+}
+
+.audit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Search boxes above long lists, with a "3 of 12" count. */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.search-row .form-control {
+  flex: 1;
+}
+
+.search-count {
+  font-size: 0.85rem;
+  color: #555;
+  white-space: nowrap;
+}
+
+.form-hint {
+  display: block;
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+
+/* Chat: lost connection banner, "X is typing...", and images that open full size. */
+.connection-banner {
+  background: #fff3cd;
+  color: #664d03;
+  border: 2px solid #997404;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.typing-indicator {
+  min-height: 1.5rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #555;
+  padding: 0.15rem 0.25rem;
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: fab-typing-dot 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.image-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1070;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 16px;
+}
+
+.image-viewer-figure {
+  margin: 0;
+  text-align: center;
+  color: #f1f1f1;
+}
+
+.image-viewer-figure img {
+  max-width: min(90vw, 1000px);
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.image-viewer-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Dark mode for the new pieces. */
+body.dark-theme .toast-card {
+  background: #2a2a2a;
+  color: #f1f1f1;
+  border-color: #555;
+  border-left-color: #8ab4ff;
+}
+
+body.dark-theme .search-count,
+body.dark-theme .typing-indicator {
+  color: #c8c8c8;
+}
+
+body.dark-theme .connection-banner {
+  background: #3d3313;
+  color: #ffe69c;
+  border-color: #997404;
+}
+
+/* The logo's navy lettering would disappear on the dark background, so it sits on a light card. */
+body.dark-theme .logo {
+  background: #f1f1f1;
+  border-radius: 12px;
+  padding: 4px 10px;
 }

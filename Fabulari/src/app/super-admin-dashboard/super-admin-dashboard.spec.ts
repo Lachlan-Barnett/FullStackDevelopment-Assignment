@@ -6,34 +6,98 @@ import { signal } from '@angular/core';
 import { SuperAdminDashboard } from './super-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { GroupDeleteRequest, GroupRequest, RemovedUser, SystemBanRequest } from '../models';
+import {
+  GroupDeleteRequest,
+  GroupRequest,
+  RemovedUser,
+  SystemBanRequest,
+  RefreshEvent,
+} from '../models';
+import { Subject } from 'rxjs';
+import { ChatSocketService } from '../services/chat-socket.service';
 
 describe('SuperAdminDashboard', () => {
+  // Lets a test pretend the server sent a "refresh" event.
+  const liveRefresh = new Subject<RefreshEvent>();
+
   let fixture: ComponentFixture<SuperAdminDashboard>;
   let http: HttpTestingController;
 
   const groupRequest: GroupRequest = {
-    id: 1, requestedBy: 3, requesterName: 'user2', name: 'Chess', description: 'chess talk', ageLimit: 0,
-    colourTheme: 'Red', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '',
+    id: 1,
+    requestedBy: 3,
+    requesterName: 'user2',
+    name: 'Chess',
+    description: 'chess talk',
+    ageLimit: 0,
+    colourTheme: 'Red',
+    status: 'pending',
+    rejectionReason: null,
+    reviewedBy: null,
+    createdAt: '',
   };
   const deleteRequest: GroupDeleteRequest = {
-    id: 5, groupId: 1, groupName: 'help', requestedBy: 2, requesterName: 'user1', reason: 'nobody uses it',
-    status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '',
+    id: 5,
+    groupId: 1,
+    groupName: 'help',
+    requestedBy: 2,
+    requesterName: 'user1',
+    reason: 'nobody uses it',
+    status: 'pending',
+    rejectionReason: null,
+    reviewedBy: null,
+    createdAt: '',
   };
 
   const removal: SystemBanRequest = {
-    id: 9, userId: 3, username: 'user2', email: 'user2@com.au', groupId: 1, groupName: 'help', reportId: 8,
-    reason: 'spamming', requestedBy: 2, requesterName: 'user1', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '',
+    id: 9,
+    userId: 3,
+    username: 'user2',
+    email: 'user2@com.au',
+    groupId: 1,
+    groupName: 'help',
+    reportId: 8,
+    reason: 'spamming',
+    requestedBy: 2,
+    requesterName: 'user1',
+    status: 'pending',
+    rejectionReason: null,
+    reviewedBy: null,
+    createdAt: '',
   };
 
   const removedUser: RemovedUser = {
-    userId: 7, username: 'spammer', email: 'spam@test.com', removedAt: '2026-09-29T10:00:00.000Z', groupName: 'help',
-    reason: 'posting links', requestedBy: 2, requesterName: 'user1',
+    userId: 7,
+    username: 'spammer',
+    email: 'spam@test.com',
+    removedAt: '2026-09-29T10:00:00.000Z',
+    groupName: 'help',
+    reason: 'posting links',
+    requestedBy: 2,
+    requesterName: 'user1',
   };
 
   const auditEntries = [
-    { id: 2, type: 'GROUP_CREATED', actorId: 1, actorName: 'admin', targetType: 'group', targetId: 2, details: 'Approved and created the group "Chess"', timestamp: '2026-09-30T03:00:00.000Z' },
-    { id: 1, type: 'USER_SIGNED_UP', actorId: 4, actorName: 'carol', targetType: 'user', targetId: 4, details: 'carol (c@t.com) created an account', timestamp: '2026-09-30T02:00:00.000Z' },
+    {
+      id: 2,
+      type: 'GROUP_CREATED',
+      actorId: 1,
+      actorName: 'admin',
+      targetType: 'group',
+      targetId: 2,
+      details: 'Approved and created the group "Chess"',
+      timestamp: '2026-09-30T03:00:00.000Z',
+    },
+    {
+      id: 1,
+      type: 'USER_SIGNED_UP',
+      actorId: 4,
+      actorName: 'carol',
+      targetType: 'user',
+      targetId: 4,
+      details: 'carol (c@t.com) created an account',
+      timestamp: '2026-09-30T02:00:00.000Z',
+    },
   ];
 
   const el = () => fixture.nativeElement as HTMLElement;
@@ -42,9 +106,13 @@ describe('SuperAdminDashboard', () => {
     fixture.detectChanges();
   };
   const panel = (title: string) =>
-    [...el().querySelectorAll('.panel')].find((p) => p.querySelector('.panel-title')?.textContent?.trim() === title)!;
+    [...el().querySelectorAll('.panel')].find(
+      (p) => p.querySelector('.panel-title')?.textContent?.trim() === title,
+    )!;
   const buttonIn = (root: Element, text: string) =>
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent?.trim() === text,
+    )!;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -53,7 +121,11 @@ describe('SuperAdminDashboard', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AuthService, useValue: { currentUser: signal({ id: 1, role: 'superadmin' }), logout: vi.fn() } },
+        { provide: ChatSocketService, useValue: { refresh$: liveRefresh } },
+        {
+          provide: AuthService,
+          useValue: { currentUser: signal({ id: 1, role: 'superadmin' }), logout: vi.fn() },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -66,7 +138,9 @@ describe('SuperAdminDashboard', () => {
     http.expectOne(`${API_URL}/admin/group-delete-requests`).flush([deleteRequest]);
     http.expectOne(`${API_URL}/admin/system-ban-requests`).flush([removal]);
     http.expectOne(`${API_URL}/admin/removed-users`).flush([removedUser]);
-    http.expectOne(`${API_URL}/admin/audit-log?order=newest`).flush({ types: ['GROUP_CREATED', 'USER_SIGNED_UP'], entries: auditEntries });
+    http
+      .expectOne(`${API_URL}/admin/audit-log?order=newest&skip=0&limit=50`)
+      .flush({ types: ['GROUP_CREATED', 'USER_SIGNED_UP'], entries: auditEntries, total: 2 });
     await settle();
   });
 
@@ -110,7 +184,10 @@ describe('SuperAdminDashboard', () => {
     const confirmSpy = vi.spyOn(window, 'confirm');
     buttonIn(panel('Group Deletion Requests'), 'Reject').click();
     expect(confirmSpy).not.toHaveBeenCalled();
-    expect(http.expectOne(`${API_URL}/admin/group-delete-requests/5`).request.body).toEqual({ approve: false, reason: '' });
+    expect(http.expectOne(`${API_URL}/admin/group-delete-requests/5`).request.body).toEqual({
+      approve: false,
+      reason: '',
+    });
   });
 
   describe('user removal requests', () => {
@@ -144,9 +221,69 @@ describe('SuperAdminDashboard', () => {
       buttonIn(panel('User Removal Requests'), 'Remove user').click();
       http
         .expectOne(`${API_URL}/admin/system-ban-requests/9`)
-        .flush({ message: 'user2 is the only admin of "games". Another admin must be promoted first.' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'user2 is the only admin of "games". Another admin must be promoted first.' },
+          { status: 409, statusText: 'Conflict' },
+        );
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('only admin of "games"');
+    });
+  });
+
+  describe('large lists', () => {
+    it('searches users by username or email', async () => {
+      fixture.componentInstance['users'].set([
+        { id: 2, email: 'user1@com.au', username: 'user1', birthdate: '', role: 'user' },
+        { id: 3, email: 'user2@com.au', username: 'user2', birthdate: '', role: 'user' },
+      ]);
+      await settle();
+      const search = el().querySelector<HTMLInputElement>('#userSearch')!;
+      search.value = 'USER2@';
+      search.dispatchEvent(new Event('input'));
+      await settle();
+      const rows = [...panel('All Users').querySelectorAll('.group-row')];
+      expect(rows.length).toBe(1);
+      expect(rows[0].textContent).toContain('user2');
+      expect(panel('All Users').textContent).toContain('1 of 2');
+    });
+
+    it('loads more of the audit log while entries are left', async () => {
+      fixture.componentInstance['auditTotal'].set(3);
+      await settle();
+      buttonIn(panel('Audit Log'), 'Load more').click();
+      http.expectOne(`${API_URL}/admin/audit-log?order=newest&skip=2&limit=50`).flush({
+        types: [],
+        total: 3,
+        entries: [
+          {
+            id: 0,
+            type: 'USER_SIGNED_UP',
+            actorId: 2,
+            actorName: 'user1',
+            targetType: 'user',
+            targetId: 2,
+            details: 'first',
+            timestamp: '2026-09-29T00:00:00.000Z',
+          },
+        ],
+      });
+      await settle();
+      expect(panel('Audit Log').querySelectorAll('.audit-entry').length).toBe(3);
+      expect(panel('Audit Log').textContent).toContain('Showing 3 of 3');
+      expect(buttonIn(panel('Audit Log'), 'Load more')).toBeUndefined();
+    });
+
+    it('reloads by itself when the server says something changed', async () => {
+      vi.useFakeTimers();
+      liveRefresh.next({ scope: 'super-admin' });
+      liveRefresh.next({ scope: 'super-admin' }); // several changes close together cause one reload
+      vi.advanceTimersByTime(350);
+      vi.useRealTimers();
+      http.expectOne(`${API_URL}/admin/group-requests`).flush([]);
+      http.expectOne(`${API_URL}/admin/system-ban-requests`).flush([]);
+      http
+        .expectOne(`${API_URL}/admin/audit-log?order=newest&skip=0&limit=50`)
+        .flush({ types: [], entries: [], total: 0 });
     });
   });
 
@@ -162,13 +299,17 @@ describe('SuperAdminDashboard', () => {
     it('says when nobody has been removed', async () => {
       fixture.componentInstance['removedUsers'].set([]);
       await settle();
-      expect(panel('Removed Users').textContent).toContain('No users have been removed from Fabulari.');
+      expect(panel('Removed Users').textContent).toContain(
+        'No users have been removed from Fabulari.',
+      );
     });
   });
 
   describe('audit log', () => {
     it('lists entries with type, who and what', () => {
-      const entries = [...panel('Audit Log').querySelectorAll('.audit-entry')].map((e) => e.textContent?.replace(/\s+/g, ' ') ?? '');
+      const entries = [...panel('Audit Log').querySelectorAll('.audit-entry')].map(
+        (e) => e.textContent?.replace(/\s+/g, ' ') ?? '',
+      );
       expect(entries.length).toBe(2);
       expect(entries[0]).toContain('GROUP_CREATED');
       expect(entries[0]).toContain('admin: Approved and created the group "Chess"');
@@ -176,7 +317,9 @@ describe('SuperAdminDashboard', () => {
     });
 
     it('offers every type in the filter', () => {
-      const options = [...panel('Audit Log').querySelectorAll('#auditType option')].map((o) => o.textContent?.trim());
+      const options = [...panel('Audit Log').querySelectorAll('#auditType option')].map((o) =>
+        o.textContent?.trim(),
+      );
       expect(options).toEqual(['All types', 'GROUP_CREATED', 'USER_SIGNED_UP']);
     });
 
@@ -185,7 +328,9 @@ describe('SuperAdminDashboard', () => {
       select.value = 'USER_SIGNED_UP';
       select.dispatchEvent(new Event('change'));
       await settle();
-      http.expectOne(`${API_URL}/admin/audit-log?order=newest&type=USER_SIGNED_UP`).flush({ types: [], entries: [auditEntries[1]] });
+      http
+        .expectOne(`${API_URL}/admin/audit-log?order=newest&skip=0&limit=50&type=USER_SIGNED_UP`)
+        .flush({ types: [], entries: [auditEntries[1]], total: 1 });
       await settle();
       expect(panel('Audit Log').querySelectorAll('.audit-entry').length).toBe(1);
     });
@@ -193,17 +338,23 @@ describe('SuperAdminDashboard', () => {
     it('switches between newest and oldest first', async () => {
       buttonIn(panel('Audit Log'), 'Newest first').click();
       await settle();
-      http.expectOne(`${API_URL}/admin/audit-log?order=oldest`).flush({ types: [], entries: [...auditEntries].reverse() });
+      http
+        .expectOne(`${API_URL}/admin/audit-log?order=oldest&skip=0&limit=50`)
+        .flush({ types: [], entries: [...auditEntries].reverse(), total: 2 });
       await settle();
       expect(buttonIn(panel('Audit Log'), 'Oldest first')).toBeDefined();
-      expect(panel('Audit Log').querySelector('.audit-entry')?.textContent).toContain('USER_SIGNED_UP');
+      expect(panel('Audit Log').querySelector('.audit-entry')?.textContent).toContain(
+        'USER_SIGNED_UP',
+      );
     });
 
     it('refreshes after the super admin acts', () => {
       buttonIn(panel('Group Requests'), 'Approve').click();
       http.expectOne(`${API_URL}/admin/group-requests/1`).flush({});
       http.expectOne(`${API_URL}/admin/group-requests`).flush([]);
-      http.expectOne(`${API_URL}/admin/audit-log?order=newest`).flush({ types: [], entries: [] });
+      http
+        .expectOne(`${API_URL}/admin/audit-log?order=newest&skip=0&limit=50`)
+        .flush({ types: [], entries: [], total: 0 });
     });
   });
 });

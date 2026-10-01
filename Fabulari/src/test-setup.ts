@@ -33,7 +33,10 @@ class MemoryStorage implements Storage {
 }
 
 if (typeof globalThis.localStorage?.getItem !== 'function') {
-  Object.defineProperty(globalThis, 'localStorage', { value: new MemoryStorage(), configurable: true });
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: new MemoryStorage(),
+    configurable: true,
+  });
 }
 
 // Each test starts logged out with default settings.

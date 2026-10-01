@@ -11,15 +11,43 @@
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">Group Details</div>
-      <form class="edit-group-form" (ngSubmit)="saveGroupDetails()">
+      <form class="edit-group-form" (ngSubmit)="saveGroupDetails()" novalidate>
+        <label>
+          Name
+          <input
+            type="text"
+            class="form-control"
+            [(ngModel)]="editName"
+            name="editName"
+            [maxlength]="limits.name"
+            required
+          />
+        </label>
         <label>
           Description
-          <textarea class="form-control" [(ngModel)]="editDescription" name="editDescription" rows="2"></textarea>
+          <textarea
+            class="form-control"
+            [(ngModel)]="editDescription"
+            name="editDescription"
+            rows="2"
+            [maxlength]="limits.description"
+          ></textarea>
         </label>
         <label>
           Age Limit
-          <input type="number" class="form-control" [(ngModel)]="editAgeLimit" name="editAgeLimit" min="0" max="120" step="1" aria-describedby="age-limit-hint">
-          <span id="age-limit-hint" class="field-hint">Raising the age limit removes members who are now too young.</span>
+          <input
+            type="number"
+            class="form-control"
+            [(ngModel)]="editAgeLimit"
+            name="editAgeLimit"
+            min="0"
+            max="120"
+            step="1"
+            aria-describedby="age-limit-hint"
+          />
+          <span id="age-limit-hint" class="field-hint"
+            >Raising the age limit removes members who are now too young.</span
+          >
         </label>
         <label>
           Colour Theme
@@ -41,21 +69,36 @@
     <div class="card-body">
       <div class="panel-title">Join Requests</div>
       @for (request of joinRequests(); track request.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
-            <span class="room-name">{{ request.username ?? ('User #' + request.userId) }}</span>
-            <span class="request-meta">wants to join &middot; {{ request.createdAt | date: 'd MMM, h:mm a' }}</span>
+            <span class="room-name">{{ request.username ?? 'User #' + request.userId }}</span>
+            <span class="request-meta"
+              >wants to join &middot; {{ request.createdAt | date: 'd MMM, h:mm a' }}</span
+            >
           </div>
           <div class="request-actions">
             <input
               type="text"
               class="form-control form-control-sm"
               placeholder="Reason (optional)"
+              [maxlength]="limits.reason"
               [attr.aria-label]="'Rejection reason for ' + (request.username ?? 'this user')"
               [(ngModel)]="joinRejectReasons[request.id]"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-success"
+              (click)="actionJoinRequest(request, true)"
             >
-            <button type="button" class="btn btn-sm btn-outline-success" (click)="actionJoinRequest(request, true)">Approve</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionJoinRequest(request, false)">Reject</button>
+              Approve
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              (click)="actionJoinRequest(request, false)"
+            >
+              Reject
+            </button>
           </div>
         </div>
       } @empty {
@@ -68,19 +111,45 @@
     <div class="card-body">
       <div class="panel-title">Reports</div>
       @for (report of reports(); track report.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
-            <span class="room-name">{{ report.reportedName ?? ('User #' + report.reportedUserId) }}</span>
-            <span class="request-meta">reported by {{ report.reporterName ?? ('User #' + report.reportedBy) }} &middot; {{ report.createdAt | date: 'd MMM, h:mm a' }}</span>
+            <span class="room-name">{{
+              report.reportedName ?? 'User #' + report.reportedUserId
+            }}</span>
+            <span class="request-meta"
+              >reported by {{ report.reporterName ?? 'User #' + report.reportedBy }} &middot;
+              {{ report.createdAt | date: 'd MMM, h:mm a' }}</span
+            >
           </div>
           <div class="report-reason">{{ report.reason }}</div>
           @if (isOwnReport(report)) {
-            <div class="request-meta">You filed this report, so another admin must review it. If you are the only admin, promote a member first.</div>
+            <div class="request-meta">
+              You filed this report, so another admin must review it. If you are the only admin,
+              promote a member first.
+            </div>
           } @else {
             <div class="request-actions">
-              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionReport(report, 'ban')">Ban from group</button>
-              <button type="button" class="btn btn-sm btn-outline-danger" (click)="escalateReport(report)">Ask super admin to remove from Fabulari</button>
-              <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionReport(report, 'dismiss')">Dismiss</button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                (click)="actionReport(report, 'ban')"
+              >
+                Ban from group
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                (click)="escalateReport(report)"
+              >
+                Ask super admin to remove from Fabulari
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-dark"
+                (click)="actionReport(report, 'dismiss')"
+              >
+                Dismiss
+              </button>
             </div>
           }
         </div>
@@ -93,40 +162,55 @@
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">Members</div>
-      @for (member of members(); track member.userId) {
-        <div class="member-row">
-          <span class="member-name">{{ member.user?.username ?? ('User #' + member.userId) }}{{ isSelf(member) ? ' (you)' : '' }}</span>
-          <span class="role-badge" [class.role-admin]="member.role === 'admin'">{{ member.role }}</span>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-dark"
-            [disabled]="isLastAdmin(member)"
-            [title]="isLastAdmin(member) ? 'A group must always have at least one admin. Promote someone else first.' : ''"
-            (click)="toggleRole(member)"
-          >
-            {{ member.role === 'admin' ? 'Demote' : 'Promote' }}
-          </button>
-        </div>
-      }
+      <div class="scroll-list">
+        @for (member of members(); track member.userId) {
+          <div class="member-row">
+            <span class="member-name"
+              >{{ member.user?.username ?? 'User #' + member.userId
+              }}{{ isSelf(member) ? ' (you)' : '' }}</span
+            >
+            <span class="role-badge" [class.role-admin]="member.role === 'admin'">{{
+              member.role
+            }}</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-dark"
+              [disabled]="isLastAdmin(member)"
+              [title]="
+                isLastAdmin(member)
+                  ? 'A group must always have at least one admin. Promote someone else first.'
+                  : ''
+              "
+              (click)="toggleRole(member)"
+            >
+              {{ member.role === 'admin' ? 'Demote' : 'Promote' }}
+            </button>
+          </div>
+        }
+      </div>
     </div>
   </div>
 
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">Banned Members</div>
-      @for (ban of banned(); track ban.userId + '-' + ban.bannedAt) {
-        <div class="member-row banned-row">
-          <div class="member-name">
-            <div>{{ ban.username ?? 'Removed user' }}</div>
-            <div class="request-meta">
-              banned {{ ban.bannedAt | date: 'd MMM y' }}{{ ban.bannedByName ? ' by ' + ban.bannedByName : '' }}{{ ban.reason ? ' · reason: ' + ban.reason : '' }}
+      <div class="scroll-list">
+        @for (ban of banned(); track ban.userId + '-' + ban.bannedAt) {
+          <div class="member-row banned-row">
+            <div class="member-name">
+              <div>{{ ban.username ?? 'Removed user' }}</div>
+              <div class="request-meta">
+                banned {{ ban.bannedAt | date: 'd MMM y'
+                }}{{ ban.bannedByName ? ' by ' + ban.bannedByName : ''
+                }}{{ ban.reason ? ' · reason: ' + ban.reason : '' }}
+              </div>
             </div>
+            <span class="role-badge banned-badge">banned</span>
           </div>
-          <span class="role-badge banned-badge">banned</span>
-        </div>
-      } @empty {
-        <p class="empty-note">Nobody has been banned from this group.</p>
-      }
+        } @empty {
+          <p class="empty-note">Nobody has been banned from this group.</p>
+        }
+      </div>
     </div>
   </div>
 
@@ -137,17 +221,52 @@
         @if (editingRoomId() === room.id) {
           <form class="room-edit-form" (ngSubmit)="saveRoom(room)">
             <label class="visually-hidden" [attr.for]="'room-name-' + room.id">Room name</label>
-            <input [id]="'room-name-' + room.id" name="editRoomName" type="text" class="form-control form-control-sm" maxlength="40" [(ngModel)]="editRoomName">
-            <label class="visually-hidden" [attr.for]="'room-desc-' + room.id">Room description</label>
-            <input [id]="'room-desc-' + room.id" name="editRoomDescription" type="text" class="form-control form-control-sm" maxlength="200" placeholder="Description" [(ngModel)]="editRoomDescription">
+            <input
+              [id]="'room-name-' + room.id"
+              name="editRoomName"
+              type="text"
+              class="form-control form-control-sm"
+              [maxlength]="limits.name"
+              [(ngModel)]="editRoomName"
+            />
+            <label class="visually-hidden" [attr.for]="'room-desc-' + room.id"
+              >Room description</label
+            >
+            <input
+              [id]="'room-desc-' + room.id"
+              name="editRoomDescription"
+              type="text"
+              class="form-control form-control-sm"
+              [maxlength]="limits.description"
+              placeholder="Description"
+              [(ngModel)]="editRoomDescription"
+            />
             <button type="submit" class="btn btn-sm btn-dark">Save</button>
-            <button type="button" class="btn btn-sm btn-outline-dark" (click)="cancelEditRoom()">Cancel</button>
+            <button type="button" class="btn btn-sm btn-outline-dark" (click)="cancelEditRoom()">
+              Cancel
+            </button>
           </form>
         } @else {
           <div class="room-row">
-            <span class="room-name">{{ room.name }}{{ room.description ? ' — ' + room.description : '' }}</span>
-            <button type="button" class="btn btn-sm btn-outline-dark" [attr.aria-label]="'Edit ' + room.name" (click)="startEditRoom(room)">Edit</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" [attr.aria-label]="'Delete ' + room.name" (click)="deleteRoom(room)">Delete</button>
+            <span class="room-name"
+              >{{ room.name }}{{ room.description ? ' — ' + room.description : '' }}</span
+            >
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-dark"
+              [attr.aria-label]="'Edit ' + room.name"
+              (click)="startEditRoom(room)"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              [attr.aria-label]="'Delete ' + room.name"
+              (click)="deleteRoom(room)"
+            >
+              Delete
+            </button>
           </div>
         }
       } @empty {
@@ -160,25 +279,43 @@
     <div class="card-body">
       <div class="panel-title">Channel Requests</div>
       @for (request of roomRequests(); track request.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
             <span class="room-name">{{ request.name }}</span>
-            <span class="request-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
+            <span class="request-meta"
+              >requested by {{ request.requesterName ?? 'User #' + request.requestedBy }}</span
+            >
           </div>
           <div class="request-meta">{{ request.description || 'No description' }}</div>
           @if (isOwnRequest(request)) {
-            <div class="request-meta">This is your own request, so another admin must review it. If you are the only admin, promote a member first.</div>
+            <div class="request-meta">
+              This is your own request, so another admin must review it. If you are the only admin,
+              promote a member first.
+            </div>
           } @else {
             <div class="request-actions">
               <input
                 type="text"
                 class="form-control form-control-sm"
                 placeholder="Reason (required to reject)"
+                [maxlength]="limits.reason"
                 [attr.aria-label]="'Rejection reason for ' + request.name"
                 [(ngModel)]="rejectReasons[request.id]"
+              />
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-success"
+                (click)="actionRoomRequest(request, true)"
               >
-              <button type="button" class="btn btn-sm btn-outline-success" (click)="actionRoomRequest(request, true)">Approve</button>
-              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRoomRequest(request, false)">Reject</button>
+                Approve
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger"
+                (click)="actionRoomRequest(request, false)"
+              >
+                Reject
+              </button>
             </div>
           }
         </div>
@@ -193,24 +330,33 @@
       <div class="panel-title">Delete Group</div>
       @if (pendingDelete(); as pending) {
         <p class="request-meta">
-          Deletion requested {{ pending.createdAt | date: "d MMM, h:mm a" }} &mdash; waiting for the super admin.
+          Deletion requested {{ pending.createdAt | date: 'd MMM, h:mm a' }} &mdash; waiting for the
+          super admin.
         </p>
       } @else {
         @if (lastRejectedDelete(); as rejected) {
           <p class="request-meta">
-            Your last deletion request was rejected{{ rejected.rejectionReason ? ": " + rejected.rejectionReason : "." }}
+            Your last deletion request was rejected{{
+              rejected.rejectionReason ? ': ' + rejected.rejectionReason : '.'
+            }}
           </p>
         }
-        <p class="request-meta">Groups can only be deleted by the super admin. If they approve, every room and message in this group is removed.</p>
+        <p class="request-meta">
+          Groups can only be deleted by the super admin. If they approve, every room and message in
+          this group is removed.
+        </p>
         <div class="request-actions">
           <input
             type="text"
             class="form-control form-control-sm"
             placeholder="Reason (optional)"
+            [maxlength]="limits.reason"
             aria-label="Reason for deleting the group"
             [(ngModel)]="deleteReason"
-          >
-          <button type="button" class="btn btn-sm btn-outline-danger" (click)="requestDeletion()">Request deletion</button>
+          />
+          <button type="button" class="btn btn-sm btn-outline-danger" (click)="requestDeletion()">
+            Request deletion
+          </button>
         </div>
       }
     </div>

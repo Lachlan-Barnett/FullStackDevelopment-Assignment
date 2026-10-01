@@ -1,6 +1,6 @@
 # Lachlan Barnett, s5438449, Thursday 9 to 11
 
-Fabulari is a real-time chat application built on the MEAN stack (MongoDB, Express, Angular and Node.js), with Socket.IO for live communication. Users sign up, browse groups, ask to join them, and chat in each group's rooms with text and PNG images. Group admins manage their groups (members, rooms, join and room requests, reports), and a single super admin approves new groups, group deletions and the removal of users from the system. This document describes the finished Phase 2 application: its requirements, Angular architecture, server API, design and testing.
+Fabulari is a real-time chat application built on the MEAN stack (MongoDB, Express, Angular and Node.js), with Socket.IO for live communication. Users sign up, browse groups, ask to join them, and chat in each group's rooms with text and PNG images, seeing who is in the room and who is typing. Pages update live over the same socket connection, so new requests, decisions and members appear without reloading. Group admins manage their groups (members, rooms, join and room requests, reports), and a single super admin approves new groups, group deletions and the removal of users from the system. This document describes the finished Phase 2 application: its requirements, Angular architecture, server API, design and testing.
 
 
 Phase 2 was developed on a separate `phase2` branch. This kept the `main` branch in a working state while each new item was added, so a working version of the application was always available. Each item on the Phase 2 task list was built, tested and committed on `phase2` before moving on to the next one, so the branch stayed working after every commit as well. When Phase 2 was complete, `phase2` was merged into `develop` and then into `main`, which holds the submitted version.
@@ -11,19 +11,19 @@ Commits were kept small, with each one covering a single change such as a new fe
 
 ## Specifications and Requirements (Functional Requirements)
 
-The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 to FR-40). All of them are implemented. The third column describes how each one is met and any assumption made where the specification was unclear.
+The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 to FR-40). FR-41 to FR-45 were added in Phase 2 to make the app real-time and easier to use with large amounts of data. All of them are implemented. The third column describes how each one is met and any assumption made where the specification was unclear.
 
 
 ### System / General
 
 | ID | Functional Requirement | Implementation and Assumptions |
 |---|---|---|
-| FR-1 | Real-time delivery of messages between users in the same room. | Socket.IO rooms. A new message is broadcast to everyone in the room as `message:new`. |
-| FR-2 | Users register their own account with an email, username, date of birth and password. | Email is the unique identifier (MongoDB unique index). There is no OAuth or social sign-up. |
+| FR-1 | Real-time delivery of messages between users in the same room. | Socket.IO rooms. A new message is broadcast to everyone in the room as `message:new`. If the connection drops (for example the server restarts), the page shows a "Reconnecting" banner and rejoins its room by itself. |
+| FR-2 | Users register their own account with an email, username, date of birth and password. | Email is the unique identifier. It is stored in lower case, so it is unique ignoring case (MongoDB unique index). Usernames are unique too, ignoring case. Every field is checked in the form and again on the server: a valid email, a username of up to 30 characters without "@", and a real date of birth that is not in the future. There is no OAuth or social sign-up. |
 | FR-3 | Passwords are hashed. | bcrypt with 10 salt rounds. Hashes are never sent to the client. |
 | FR-4 | Users change their password by entering the old password once and the new password twice. | The server checks that all three fields are given, that the two new passwords match, and the old password against the stored hash. |
 | FR-5 | There is no password recovery. | A forgotten password means creating a new account, as stated by the client. |
-| FR-6 | Users can switch between light and dark mode. | A personal display setting in Settings, saved in the browser and applied at start-up. |
+| FR-6 | Users can switch between light and dark mode. | A personal display setting in Settings. It is saved on the user's account in MongoDB, so it is applied as soon as they log in, on any browser. Logged-out pages are light. |
 | FR-7 | Desktop is the main target. Tablet support is a bonus. | Desktop and tablet layouts in portrait and landscape. No mobile app. |
 | FR-8 | Users can send PNG images of at most 2MB. | The server checks the PNG file signature (the first 8 bytes), not only the file name, and rejects files over 2MB. |
 | FR-9 | Groups have no profile picture. | A group is identified by its name, description and colour theme. |
@@ -43,25 +43,25 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 | FR-17 | Users can see their pending and past rejected requests. | The My Requests page lists pending and rejected group, room and join requests with their reasons. Approved requests simply appear as the new group, room or membership. |
 | FR-18 | Users send text and PNG messages in rooms of groups they belong to. | Membership is checked on the server for every join and every message. No voice, GIFs or other file types. |
 | FR-19 | Users see who is in the room and are told when someone joins or leaves. | An "In this room" list and "X joined the room" / "X left the room" notices. A user with two tabs open counts once. |
-| FR-20 | Users have a private profile with an optional photo. Every field except email can be changed. | The Settings page changes username, birthdate, password and profile photo (PNG, at most 2MB). Profiles are not visible to other users. |
+| FR-20 | Users have a private profile with an optional photo. Every field except email can be changed. | The Settings page changes username, birthdate, password and profile photo (PNG, at most 2MB). Profiles are not visible to other users. Usernames stay unique. |
 | FR-21 | Messages show a timestamp and the sender's photo. | The server sets the time, and each browser shows it in local time. The sender's current photo is shown, or their initial if they have none. There is no editing, deleting or replying. |
-| FR-22 | Users can leave a group at any time. | Leaving does not affect the account, and the user can ask to rejoin. A group's only admin must promote another member first. |
+| FR-22 | Users can leave a group at any time. | Leaving does not affect the account, and the user can ask to rejoin. A group's only admin must promote another member first. Leaving takes the user out of the group's chat rooms straight away. |
 
 
 ### Group Admin
 
 | ID | Functional Requirement | Implementation and Assumptions |
 |---|---|---|
-| FR-23 | Group admins edit the group's description, age limit and colour theme. | The name cannot be changed. Colours are limited to the logo colours Blue, Yellow and Red. The age limit is a whole number from 0 to 120. |
+| FR-23 | Group admins edit the group's name, description, age limit and colour theme. | The client Q&A allows renaming. Group names stay unique, ignoring case. Colours are limited to the logo colours Blue, Yellow and Red. The age limit is a whole number from 0 to 120. Members see the change straight away. |
 | FR-24 | The group's colour theme applies to its rooms. | The chat area is tinted with the group's colour. |
 | FR-25 | A user can be admin of any number of groups. | The role is stored on each group membership. |
 | FR-26 | Group admins approve room requests, or reject them with a reason. | Admins cannot approve their own requests, as the client ruled out self-approval. |
 | FR-27 | Group admins edit a room's name and description. | Room names stay unique within the group, ignoring case. The room keeps its messages. |
 | FR-28 | Group admins promote members and demote admins. A group always keeps at least one admin. | Any admin can demote any admin, including themselves, unless they are the last one. |
-| FR-29 | Group admins ban users from their group, based on a report. | Members report other members. A group admin reviews each report and bans or dismisses it. Bans are permanent and remove the user from the group. Admins cannot act on reports they filed, and admins must be demoted before they can be banned. |
+| FR-29 | Group admins ban users from their group, based on a report. | Members report other members. A group admin reviews each report and bans or dismisses it. Bans are permanent and remove the user from the group. Admins cannot act on reports they filed, and admins must be demoted before they can be banned. A banned member is taken out of the group's rooms at once and told why. |
 | FR-30 | Group admins ask the super admin to remove a user from the whole system. | Sent from a report. Only one request per user can be waiting at a time. |
 | FR-31 | Group admins ask the super admin to delete their group. | The group is only deleted if the super admin approves. |
-| FR-32 | Raising the age limit removes members who are now too young. | Applied straight away. Pending join requests from anyone too young are rejected. The change is refused if it would leave the group with no admin. |
+| FR-32 | Raising the age limit removes members who are now too young. | Applied straight away. Pending join requests from anyone too young are rejected. The change is refused if it would leave the group with no admin. A user who changes their own birthdate to under a group's age limit is removed from it in the same way, unless they are its only admin. |
 | FR-33 | Group admins see the current and banned members of their group. | Basic details only (username, and for bans the date, the admin and the reason). No emails, and no information about other groups. |
 | FR-34 | Group admins are marked in chat. | A green Admin badge on their messages and in the member list. |
 
@@ -73,9 +73,20 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 | FR-35 | There is exactly one super admin. | Created by the seed script. Sign-up always creates normal users. |
 | FR-36 | The super admin approves or rejects requests for new groups. | The super admin never creates groups directly. |
 | FR-37 | The super admin approves group deletions requested by a group admin. | Deleting a group removes its rooms, messages, images and pending requests. |
-| FR-38 | The super admin removes users from the system at a group admin's request. A removed user's email can never be used again. | The account is deleted, removed from every group, and its email is blocked from signing up again (ignoring case). Refused while the user is the only admin of any group. The super admin's Removed Users list shows every removed account with its email, when it was removed, the report and who asked. |
-| FR-39 | The super admin has an audit log, filterable by type and in date order. | Every request and decision is recorded with who did it, what happened and when. The log filters by type and shows newest or oldest first. |
+| FR-38 | The super admin removes users from the system at a group admin's request. A removed user's email can never be used again. | The account is deleted, removed from every group, and its email is blocked from signing up again (ignoring case). Refused while the user is the only admin of any group. The super admin's Removed Users list shows every removed account with its email, when it was removed, the report and who asked. The removed user's open tabs are logged out at once. |
+| FR-39 | The super admin has an audit log, filterable by type and in date order. | Every request and decision is recorded with who did it, what happened and when. The log filters by type, shows newest or oldest first, and loads 50 entries at a time with a Load more button, so it stays fast however long it gets. |
 | FR-40 | The super admin does not chat. | Blocked on the server, and the super admin's home page is their dashboard instead of chat. |
+
+
+### Real-time and Usability (added in Phase 2)
+
+| ID | Functional Requirement | Implementation and Assumptions |
+|---|---|---|
+| FR-41 | Pages update live. | The server pushes pop-up notifications (for example "Your room was approved" or "carol asked to join") and tells open pages to reload what changed: the group and room lists, My Requests and both dashboards. Nobody needs to reload a page. |
+| FR-42 | Users see who is typing in their room. | "user1 is typing..." appears under the messages and clears when they stop, send or leave. Typing is never stored. |
+| FR-43 | Images can be viewed full size. | Clicking an image opens it in a viewer with the sender and time. Escape, the Close button or clicking outside closes it. |
+| FR-44 | Users log in with their email or their username. | Usernames cannot contain "@", so anything with an "@" is treated as an email. Both ignore capitals. |
+| FR-45 | Long lists stay usable with large amounts of data. | The Groups page and the super admin's group and user lists have search boxes, long lists scroll inside their panel, the audit log is paged, and MongoDB indexes match the common queries. |
 
 
 ### Additional Assumptions
@@ -84,7 +95,8 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 |---|---|
 | Every request carries a login token (JWT), and the server works out who the user is from it. | The server never trusts a user id sent by the client. |
 | Only the super admin can list every account. | The client said profiles are private, so other users only ever see usernames. |
-| Usernames are not unique. Email is. | Reports find the reported user by username within the chosen group. |
+| Usernames and emails are both unique, ignoring case. | Either can be used to log in, and a report names the reported member by username. |
+| Uploaded images are stored as files on disk, and MongoDB stores their path. | Images can be up to 2MB, and files are served and cached efficiently. See Efficiency and Security below. |
 | Group and room names are unique, ignoring case. | Avoids confusing duplicates such as "Gamers" and "gamers". |
 | Who is banned from a group is private. | Each user is only told whether they themselves are banned. |
 | A removed user's recent messages stay in their rooms until newer messages replace them. | Rooms only keep 5 messages, and removing them early would leave gaps in other people's conversations. |
@@ -96,7 +108,7 @@ Data is stored in MongoDB in a database called `fabulari`. Every document has a 
 
 | Collection | Fields |
 |---|---|
-| `users` | `id`, `email` (unique), `username`, `birthdate`, `passwordHash`, `role` ("user" or "superadmin"), `profilePhoto` |
+| `users` | `id`, `email` (unique, lower case), `username` (unique, ignoring case), `birthdate`, `passwordHash`, `role` ("user" or "superadmin"), `profilePhoto`, `darkMode` |
 | `groups` | `id`, `name`, `description`, `ageLimit`, `colourTheme`, `members` (list of `{ userId, role }`), `bannedUserIds` |
 | `rooms` | `id`, `groupId`, `name`, `description`, `createdAt` |
 | `messages` | `id`, `roomId`, `senderId`, `senderName`, `type` ("text" or "image"), `content`, `timestamp`. At most 5 per room. |
@@ -114,6 +126,18 @@ Data is stored in MongoDB in a database called `fabulari`. Every document has a 
 Request `status` is always "pending", "approved" or "rejected".
 
 
+### Efficiency and Security
+
+| Area | How it is handled |
+|---|---|
+| Indexes | Every collection has a unique index on `id`. Users also have unique indexes on `email` and on `username` (ignoring case). Other indexes match the common queries: pending requests by group, a user's own requests, reports by group, groups by member, messages by room, and the audit log by time and by type. |
+| Small reads | Queries use projections, so only the needed fields are read, and password hashes and MongoDB's `_id` are never sent. The audit log is read 50 entries at a time, and each room keeps only its last 5 messages. |
+| Images | Uploaded PNGs are saved as files with random names and served by Express, and MongoDB stores only their path. This keeps documents small and lets browsers cache the images. Old images are deleted when their message is trimmed, their room or group is deleted, or a profile photo is replaced. |
+| Passwords and logins | Passwords are hashed with bcrypt. Logging in returns a JWT that every request and socket connection must send. The server looks the user up on every request, so a removed account or a changed role takes effect at once. |
+| Input checking | Every field is checked on the server (type, length and format), and the forms make the same checks first to give clear messages. Files must really be PNGs (the first 8 bytes are checked) and at most 2MB. |
+| Access control | Each route checks the user's role on the server, and socket events re-check group membership before every join and message. CORS only allows the Angular app's address. |
+
+
 ## Angular Architecture
 
 The client is an Angular 22 app built from standalone components. Each feature has its own folder, and communication with the server goes through HTTP for normal requests and Socket.IO for live chat. Component state is held in signals, and the socket service exposes Observables that the chat page turns into signals.
@@ -125,7 +149,7 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 
 | Model | Fields / Purpose |
 |---|---|
-| `User` | `id, email, username, birthdate, role, profilePhoto`. The logged-in user. |
+| `User` | `id, email, username, birthdate, role, profilePhoto, darkMode`. The logged-in user. |
 | `RemovedUser` | `userId, username, email, removedAt, groupName, reason, requesterName`. An account the super admin removed, for the Removed Users list. |
 | `Group`, `GroupMember` | A group and its members (`userId, role`), plus `isBanned` for the logged-in user. |
 | `GroupMemberDetails` | A member with their `username`, for member lists. |
@@ -133,9 +157,10 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 | `Room` | `id, groupId, name, description, createdAt` |
 | `Message`, `MessageType` | `id, roomId, senderId, senderName, senderPhoto, type, content, timestamp`. The type is "text" or "image". |
 | `PresentUser`, `PresenceEvent` | A user in a room, and a "joined" or "left" notice. |
+| `RefreshEvent`, `RefreshScope`, `TypingEvent` | Live updates from the server: what kind of data changed (groups, rooms, requests, a group admin dashboard or the super admin dashboard), and who started or stopped typing in a room. |
 | `JoinRequest`, `GroupRequest`, `RoomRequest`, `GroupDeleteRequest`, `SystemBanRequest`, `RequestStatus` | The request types. All share `id, status, rejectionReason, reviewedBy, createdAt`, where the status is "pending", "approved" or "rejected". |
 | `Report` | `id, reportedUserId, reportedBy, groupId, reason, status, reviewedBy, createdAt`, plus names for admins. |
-| `AuditLogEntry` | `id, type, actorId, actorName, targetType, targetId, details, timestamp` |
+| `AuditLogEntry`, `AuditLogPage` | One audit entry (`id, type, actorId, actorName, targetType, targetId, details, timestamp`), and one page of entries with every type seen so far and the `total`. |
 | `ColourTheme`, `COLOUR_THEMES`, `THEME_TINTS` | The allowed colours (Blue, Yellow and Red) and the tint each one gives the chat area. |
 
 
@@ -143,29 +168,42 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 
 | Service | Responsibility |
 |---|---|
-| `AuthService` | Login, sign-up and logout. Holds the logged-in user and their token, updates the user after profile changes, and gives each role's home page. |
+| `AuthService` | Login (with an email or a username), sign-up and logout. Holds the logged-in user and their token, updates the user after profile changes, and gives each role's home page. |
 | `authInterceptor` | Adds the login token to every HTTP request, and logs the user out if the server rejects it. |
-| `ChatSocketService` | Wraps the Socket.IO connection: connect, join and leave rooms, send messages, and streams of new messages, presence updates and join/leave notices. Disconnects on logout. |
+| `ChatSocketService` | Wraps the Socket.IO connection, which is open whenever someone is logged in: join and leave rooms, send messages and typing events, and streams of new messages, presence updates, join/leave notices, typing, page refreshes and reconnections. Shows server notifications as pop-ups, logs the user out if their account is removed, and disconnects on logout. |
+| `NotificationService` | The pop-up messages shown by the `Toasts` component. Each one disappears after a few seconds, and at most four are shown at once. |
 
-`src/app/api.config.ts` holds the server address used by the services.
+`src/app/api.config.ts` holds the server address used by the services, and `src/app/validation.ts` holds the form checks and text limits shared by the pages (the server applies the same limits).
+
+
+### Guards
+
+| Guard | Purpose |
+|---|---|
+| `authGuard` | Only lets logged-in users in. Everyone else goes to the login page. |
+| `guestGuard` | Sends logged-in users from the login and sign-up pages to their home page. |
+| `notSuperAdminGuard` | Keeps the super admin out of the pages for group members (chat, groups, requests and report). |
+| `superAdminGuard` | Only lets the super admin into their dashboard. |
+| `groupAdminGuard` | Only lets admins of that group into its dashboard, checked with the server each time. |
 
 
 ### Components
 
 | Component | Purpose |
 |---|---|
-| `Login` | Email and password login. Sends the user to chat, or the super admin to their dashboard. |
-| `Signup` | Registration form (email, username, date of birth, password). |
-| `Chat` | The main page: groups and rooms, live messages with timestamps, photos and Admin badges, who is in the room, join/leave notices, the message box with image upload, the Request room form, and the group information panel. |
-| `Groups` | All groups with Apply, Pending, Member, Admin or Banned state, the Leave button, and the Request a new group form. |
+| `Login` | Login with an email or username and the password. Sends the user to chat, or the super admin to their dashboard, and explains any problem (missing details, wrong details, or the server being unreachable). |
+| `Signup` | Registration form (email, username, date of birth, password), with every field checked before it is sent. |
+| `Chat` | The main page: groups and rooms, live messages with timestamps, photos and Admin badges, who is in the room, join/leave notices, the message box with image upload, the Request room form, the group information panel, who is typing, a full-size image viewer, a banner while the connection is lost, and live updates to the group and room lists. |
+| `Groups` | All groups, with a search box, and with Apply, Pending, Member, Admin or Banned state, the Leave button, and the Request a new group form. |
 | `MyRequests` | The user's pending and rejected requests. |
-| `Settings` | Profile photo, profile details, dark mode, and links to change password, username and birthdate, My Requests and Submit Report. |
+| `Settings` | Profile photo, profile details, dark mode (saved on the account), and links to change password, username and birthdate, My Requests and Submit Report. |
 | `ChangePassword` | Current password, then the new password twice. |
 | `ChangeUsername` | New username. |
 | `ChangeBirthdate` | New date of birth. |
 | `Report` | Report a member of one of your groups. |
-| `GroupAdminDashboard` | Group details, join requests, reports, members (promote and demote), banned members, channels (edit and delete), channel requests and group deletion. |
-| `SuperAdminDashboard` | Group requests, group deletion requests, user removal requests, all groups, all users, removed users and the audit log. |
+| `GroupAdminDashboard` | Group details (name, description, age limit and colour), join requests, reports, members (promote and demote), banned members, channels (edit and delete), channel requests and group deletion. Reloads live when anything in the group changes. |
+| `SuperAdminDashboard` | Group requests, group deletion requests, user removal requests, all groups and all users (each with a search box), removed users and the paged audit log. Reloads live as new requests arrive. |
+| `Toasts` | The pop-up notifications in the corner of every page. Screen readers announce each one. |
 
 
 ### Routes
@@ -181,9 +219,10 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 | /change-password | ChangePassword | authGuard | |
 | /change-username | ChangeUsername | authGuard | |
 | /change-birthdate | ChangeBirthdate | authGuard | |
-| /report | Report | authGuard | |
+| /report | Report | authGuard, notSuperAdminGuard | |
 | /admin/group/:groupId | GroupAdminDashboard | authGuard, groupAdminGuard | Only admins of that group, checked with the server each time. |
 | /admin/super | SuperAdminDashboard | authGuard, superAdminGuard | Home page for the super admin. |
+| ** | (redirect to /) | | Unknown addresses go to the login page, which sends logged-in users on to their home page. |
 
 
 ## Server Endpoints
@@ -203,13 +242,15 @@ Login and sign-up return a token. Every other endpoint needs the header `Authori
 
 Common error codes: `400` invalid input, `401` not logged in, `403` not allowed, `404` not found, `409` conflict (a duplicate, or already actioned), `413` file too large.
 
+Text fields are trimmed and limited to: usernames 30 characters, group and room names 50, descriptions and reasons 500, passwords 100 and messages 2000. Values that are missing, too long or the wrong type get `400`. After every change the server also pushes live updates over Socket.IO (see WebSocket Events).
+
 
 ### Auth
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
-| POST | /api/auth | Log in with `{ email, password }`. Returns `{ valid: true, token, id, email, username, birthdate, role, profilePhoto }`, or `{ valid: false }` for wrong details. | Public |
-| POST | /api/signup | Register with `{ email, username, birthdate, password }`. Returns the same as login. `403` if the email has been banned, `409` if it is already registered. | Public |
+| POST | /api/auth | Log in with `{ login, password }`, where `login` is an email or a username (ignoring capitals). `{ email, password }` also works. Returns `{ valid: true, token, id, email, username, birthdate, role, profilePhoto, darkMode }`, or `{ valid: false }` for wrong details. | Public |
+| POST | /api/signup | Register with `{ email, username, birthdate, password }`. The email is stored in lower case. Returns the same as login. `400` for an invalid email, username or birthdate (a real date, not in the future), `403` if the email has been banned, `409` if the email or username is already taken. | Public |
 
 
 ### Users
@@ -217,7 +258,7 @@ Common error codes: `400` invalid input, `401` not logged in, `403` not allowed,
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
 | GET | /api/users | List every account (no password hashes). | Super admin |
-| PUT | /api/users/:userId | Change `{ username, birthdate }`. Returns the updated user. | Self |
+| PUT | /api/users/:userId | Change `{ username, birthdate, darkMode }`. Returns the updated user, plus `removedFrom`: the groups a younger birthdate removed them from. `409` if the username is taken, or if the new birthdate would remove them from a group they are the only admin of. | Self |
 | PUT | /api/users/:userId/password | Change password with `{ currentPassword, newPassword, confirmPassword }`. `400` if the new passwords don't match, `403` if the current password is wrong. | Self |
 | PUT | /api/users/:userId/photo | Upload a profile photo as form data, field `image` (PNG, at most 2MB). Returns the user with `profilePhoto`. | Self |
 | DELETE | /api/users/:userId/photo | Remove the profile photo. | Self |
@@ -229,7 +270,7 @@ Common error codes: `400` invalid input, `401` not logged in, `403` not allowed,
 |---|---|---|---|
 | GET | /api/groups | List all groups, each with `members` and `isBanned` (whether you are banned). | User |
 | GET | /api/groups/:groupId | One group. | User |
-| PUT | /api/groups/:groupId | Change `{ description, ageLimit, colourTheme }`. Returns the group and `removedMembers` (members removed by a higher age limit). `409` if no admin would be left. | Group admin |
+| PUT | /api/groups/:groupId | Change `{ name, description, ageLimit, colourTheme }`. Returns the group and `removedMembers` (members removed by a higher age limit). `409` if another group has that name, or if no admin would be left. | Group admin |
 | GET | /api/groups/:groupId/members | Members with `userId, role, username`. | Member |
 | DELETE | /api/groups/:groupId/membership | Leave the group. `409` if you are its only admin. | Member |
 | PUT | /api/groups/:groupId/members/:userId/role | Set `{ role: "admin" or "member" }`. `409` if no admin would be left. | Group admin |
@@ -305,14 +346,14 @@ Uploaded files are served from `/uploads`. Message history is returned by the `r
 | GET | /api/admin/system-ban-requests | Pending requests to remove users from Fabulari. | Super admin |
 | PUT | /api/admin/system-ban-requests/:requestId | Decide with `{ approve, reason }`. Approving deletes the account and bans the email. `409` if the user is the only admin of a group. | Super admin |
 | GET | /api/admin/removed-users | Accounts removed from Fabulari, newest first, with `userId, username, email, removedAt, groupName, reason, requesterName`. | Super admin |
-| GET | /api/admin/audit-log | The audit log. `?type=` filters by type, `?order=oldest` shows oldest first (newest first by default). Returns `{ types, entries }`. | Super admin |
+| GET | /api/admin/audit-log | The audit log, one page at a time. `?type=` filters by type, `?order=oldest` shows oldest first (newest first by default), and `?skip=` and `?limit=` (50 by default, at most 200) choose the page. Returns `{ types, entries, total }`. | Super admin |
 
 The audit log records these types: `USER_SIGNED_UP`, `JOIN_REQUESTED`, `JOIN_AUTO_REJECTED`, `JOIN_APPROVED`, `JOIN_REJECTED`, `GROUP_REQUESTED`, `GROUP_CREATED`, `GROUP_REQUEST_REJECTED`, `GROUP_UPDATED`, `MEMBERS_REMOVED_AGE_LIMIT`, `GROUP_LEFT`, `MEMBER_PROMOTED`, `ADMIN_DEMOTED`, `ROOM_REQUESTED`, `ROOM_CREATED`, `ROOM_REJECTED`, `ROOM_UPDATED`, `ROOM_DELETED`, `REPORT_FILED`, `USER_BANNED_FROM_GROUP`, `REPORT_DISMISSED`, `REMOVAL_REQUESTED`, `USER_REMOVED`, `REMOVAL_REJECTED`, `GROUP_DELETE_REQUESTED`, `GROUP_DELETED` and `GROUP_DELETE_REJECTED`.
 
 
 ### WebSocket Events
 
-Sockets connect with `{ auth: { token } }`, and connections without a valid token are refused. Events sent by the client receive a reply of `{ ok: true, ... }` or `{ ok: false, message }`.
+Sockets connect with `{ auth: { token } }` as soon as the user logs in, and connections without a valid token are refused. Each socket also joins a private channel for its user (and the super admin's sockets join one for the super admin), which the server uses for notifications and live updates. When a member is banned, leaves or is removed, or a room or group is deleted, the server takes the affected sockets out of those rooms at once. Events sent by the client receive a reply of `{ ok: true, ... }` or `{ ok: false, message }`.
 
 | Event | Direction | Description |
 |---|---|---|
@@ -323,6 +364,11 @@ Sockets connect with `{ auth: { token } }`, and connections without a valid toke
 | presence:update | Server → Client | The list of who is in the room. |
 | presence:joined | Server → Client | Someone joined the room. |
 | presence:left | Server → Client | Someone left the room or disconnected. |
+| typing | Client → Server | `{ roomId, typing }` when the user starts or stops typing. Only accepted from sockets in that room. |
+| typing | Server → Client | `{ roomId, user, typing }`, sent to the others in the room. Leaving the room sends `typing: false`. |
+| notification | Server → Client | `{ message }`, a pop-up for this user, for example a decision on their request, or a new request for an admin. |
+| refresh | Server → Client | `{ scope, groupId }`: something on the user's page changed, so the page reloads it. The scopes are `groups`, `rooms`, `requests`, `group-admin` and `super-admin`. |
+| account:removed | Server → Client | The super admin removed this account. The tab logs out, then the server disconnects it. |
 
 
 ## Design Documents (Wireframes)
@@ -334,7 +380,7 @@ Pages that are unchanged from Phase 1 keep their Phase 1 wireframes. Pages that 
 
 ![Login Wireframe](Images/3813ICT-Assignment-Login-Page-Wireframe.png)
 
-This is the login page, where the user enters their email and password. Users go to the chat page after logging in, and the super admin goes to their dashboard. A Show password checkbox reveals the password, and the Signup button goes to the registration page.
+This is the login page, where the user enters their email or username and their password (FR-44). The field was labelled Email in Phase 1 and now reads "Email or username". Users go to the chat page after logging in, and the super admin goes to their dashboard. A Show password checkbox reveals the password, and the Signup button goes to the registration page.
 
 
 ### 2. Signup
@@ -350,14 +396,14 @@ This is the signup page, where a new user enters their email, username, date of 
 
 This is the chat page, where users spend most of their time. Groups and rooms are on the left, with a Find Groups button and a Request room button (FR-15). The middle shows the current room's name and who is in it (FR-19), then the messages, each with the sender's photo, name, an Admin badge for group admins and the time (FR-21, FR-34). Join and leave notices appear between messages. At the bottom are the message box and the + button for sending a PNG image (FR-8, FR-18). The group information panel on the right shows the group's description, age limit, colour and members. Group admins see a Manage Group button that opens their dashboard.
 
-The Request room button opens a short form above the messages (room name and description), which sends the request to the group's admins.
+The Request room button opens a short form above the messages (room name and description), which sends the request to the group's admins. Under the messages, "User 3 is typing..." shows who is typing (FR-42). Clicking an image opens it full size (FR-43), and pop-up notifications appear in the corner, for example when a room request is approved (FR-41). If the connection drops, a banner says the page is reconnecting.
 
 
 ### 4. Groups
 
 ![Groups Wireframe](Images/3813ICT-Assignment-Groups-Page-Wireframe-Phase2.png)
 
-This is the groups page, which lists every group in the system (FR-12). Each group shows the user's state: Apply, Pending, Member, Admin, or Banned, with the reason for any rejection (FR-13). Groups the user belongs to have a Leave button (FR-22). A Request a new group form sends a request to the super admin (FR-14), and a link opens My Requests.
+This is the groups page, which lists every group in the system (FR-12). Each group shows the user's state: Apply, Pending, Member, Admin, or Banned, with the reason for any rejection (FR-13). Groups the user belongs to have a Leave button (FR-22). A Request a new group form sends a request to the super admin (FR-14), and a link opens My Requests. A search box filters the list by name or description (FR-45).
 
 
 ### 5. My Requests
@@ -403,14 +449,14 @@ This page lets a user report another member of one of their groups, choosing the
 
 ![Group Admin Dashboard Wireframe](Images/3813ICT-Assignment-Group-Admin-Dashboard-Wireframe.png)
 
-This page is only open to the group's admins. It has panels for the group's details (FR-23, FR-32), join requests, reports with Ban, Ask super admin to remove and Dismiss buttons (FR-29, FR-30), members with Promote and Demote buttons (FR-28), banned members (FR-33), channels with Edit and Delete buttons (FR-27), channel requests (FR-26), and requesting the group's deletion (FR-31).
+This page is only open to the group's admins. It has panels for the group's details, including its name (FR-23, FR-32), join requests, reports with Ban, Ask super admin to remove and Dismiss buttons (FR-29, FR-30), members with Promote and Demote buttons (FR-28), banned members (FR-33), channels with Edit and Delete buttons (FR-27), channel requests (FR-26), and requesting the group's deletion (FR-31).
 
 
 ### 11. Super Admin Dashboard
 
 ![Super Admin Dashboard Wireframe](Images/3813ICT-Assignment-Super-Admin-Dashboard-Wireframe.png)
 
-This page is the super admin's home page. It has panels for group requests (FR-36), group deletion requests (FR-37), user removal requests (FR-38), all groups, all users, removed users (FR-38), and the audit log with a type filter and newest or oldest first ordering (FR-39).
+This page is the super admin's home page. It has panels for group requests (FR-36), group deletion requests (FR-37), user removal requests (FR-38), all groups and all users with search boxes (FR-45), removed users (FR-38), and the audit log with a type filter, newest or oldest first ordering and Load more (FR-39).
 
 
 ### Responsiveness
@@ -424,7 +470,12 @@ On a tablet in portrait, the chat page keeps the same columns at a narrower widt
 
 ### Accessibility
 
-Every page was checked with axe-core against the WCAG 2.1 A and AA rules, in both light and dark mode, with no violations. Every form field has a label, icon-only buttons have names that screen readers can read, new messages and errors are announced, keyboard focus is clearly visible, and colours meet the AA contrast level in both modes. Actions that delete or remove something ask for confirmation first.
+Every page was checked with axe-core against the WCAG 2.1 A and AA rules, in both light and dark mode, with no violations. The chat page was checked with messages from the user and from others, since the two use different colours. Every form field has a label, icon-only buttons have names that screen readers can read, new messages, typing, pop-ups and errors are announced, keyboard focus is clearly visible, the image viewer closes with Escape, and colours meet the AA contrast level in both modes. Actions that delete or remove something ask for confirmation first.
+
+
+### Animations
+
+New messages, notices, requests and list rows fade in, pop-ups slide in from the side and fade out, and the typing dots pulse. They use Angular's `animate.enter` and `animate.leave` with short CSS animations, and they are switched off for anyone whose system asks for reduced motion.
 
 
 ## Testing
@@ -435,7 +486,7 @@ Every page was checked with axe-core against the WCAG 2.1 A and AA rules, in bot
 |---|---|---|
 | Unit and component tests | Vitest through Angular's unit-test builder, with Angular TestBed and a fake HTTP backend | Each component shows the right content and sends the right requests, the route guards allow and redirect correctly, and the socket service handles events (using a fake socket). No server is needed. |
 | Server API and socket tests | Node's built-in test runner (`node:test`) with `assert`, `fetch` and `socket.io-client` | Each test file starts the real server against a separate test database (`fabulari_test`) and uploads folder, reset before every scenario. The tests call the real endpoints and socket events and check status codes, responses, database contents and files on disk. |
-| End-to-end tests | Cypress | Real user and group admin flows through the running app in a browser, page by page. The server is started with `npm run start:e2e`, which uses a separate database (`fabulari_e2e`) and uploads folder, reset before every test, so the real `fabulari` data is never touched. |
+| End-to-end tests | Cypress | Real user and group admin flows through the running app in a browser, page by page. The server is started with `npm run start:e2e`, which uses a separate database (`fabulari_e2e`) and uploads folder, reset before every test, so the real `fabulari` data is never touched. Cypress drives one browser, so a Cypress task acts as a second user from Node over its own socket, which lets live features such as the typing indicator be tested too. |
 
 Every change was checked with the unit tests and a production build, and every server change with the server test suite. To run the tests:
 
@@ -448,19 +499,28 @@ cd Fabulari && npx cypress run              # end-to-end tests
 ```
 
 
-### Automated Unit Tests (120 tests, all passed)
+### Automated Unit Tests (179 tests, all passed)
 
 | File | Test | Result |
 |---|---|---|
+| `app.routes.spec.ts` | sends unknown addresses to the login page instead of showing a blank page | Passed |
+| `app.routes.spec.ts` | keeps the super admin out of the pages for group members | Passed |
+| `app.routes.spec.ts` | protects every page except login and sign-up with authGuard | Passed |
 | `app.spec.ts` | should create the app | Passed |
 | `app.spec.ts` | should render the Fabulari logo | Passed |
-| `app.spec.ts` | should apply dark mode on start-up when it was saved | Passed |
-| `app.spec.ts` | should stay in light mode by default | Passed |
+| `app.spec.ts` | applies the logged-in user's saved dark mode setting | Passed |
+| `app.spec.ts` | switches straight away when the setting changes, and is light when logged out | Passed |
+| `app.spec.ts` | shows pop-up notifications on every page | Passed |
 | `change-birthdate.spec.ts` | should create | Passed |
+| `change-birthdate.spec.ts` | does not accept a birthdate in the future | Passed |
+| `change-birthdate.spec.ts` | saves the birthdate and says which groups the user was removed from | Passed |
+| `change-birthdate.spec.ts` | shows the server's reason when the change is refused | Passed |
 | `change-password.spec.ts` | gives every field and checkbox a unique id with its own label | Passed |
 | `change-password.spec.ts` | each "Show" checkbox reveals only its own password field | Passed |
 | `change-password.spec.ts` | clicking a "Show" label toggles that checkbox, not another one | Passed |
 | `change-username.spec.ts` | should create | Passed |
+| `change-username.spec.ts` | does not allow a blank username or one with "@" | Passed |
+| `change-username.spec.ts` | says when the username is already taken | Passed |
 | `chat.spec.ts` | joins the first room of the first group and shows who is present | Passed |
 | `chat.spec.ts` | shows the room history returned when joining | Passed |
 | `chat.spec.ts` | shows live messages for the current room with an Admin badge for admins | Passed |
@@ -478,9 +538,23 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `chat.spec.ts` | needs a name | Passed |
 | `chat.spec.ts` | shows the server error and keeps the form open | Passed |
 | `chat.spec.ts` | leaves the old room when switching rooms | Passed |
+| `chat.spec.ts` | shows who is typing in the open room, and clears it when they stop or send | Passed |
+| `chat.spec.ts` | names two people, then says several | Passed |
+| `chat.spec.ts` | ignores typing in other rooms | Passed |
+| `chat.spec.ts` | tells the room once when you start typing, and when you send | Passed |
+| `chat.spec.ts` | reloads the rooms when one is added, keeping the open room | Passed |
+| `chat.spec.ts` | moves to another room when the open one is deleted | Passed |
+| `chat.spec.ts` | leaves the group straight away when removed from it | Passed |
+| `chat.spec.ts` | keeps the open group when the group list reloads | Passed |
+| `chat.spec.ts` | rejoins the open room when the connection comes back | Passed |
+| `chat.spec.ts` | shows a banner while the connection is lost | Passed |
+| `chat.spec.ts` | opens an image full size and closes with Escape | Passed |
+| `chat.spec.ts` | closes with the Close button | Passed |
 | `chat.spec.ts` | leaves the room when the page is closed | Passed |
 | `group-admin-dashboard.spec.ts` | warns that raising the age limit removes members | Passed |
 | `group-admin-dashboard.spec.ts` | saves and names anyone removed by a higher age limit | Passed |
+| `group-admin-dashboard.spec.ts` | renames the group | Passed |
+| `group-admin-dashboard.spec.ts` | checks the name and age limit before saving | Passed |
 | `group-admin-dashboard.spec.ts` | says Saved when nobody was removed | Passed |
 | `group-admin-dashboard.spec.ts` | leaves the dashboard if the admin removed themselves | Passed |
 | `group-admin-dashboard.spec.ts` | shows the server error, e.g. no admin would be left | Passed |
@@ -513,6 +587,11 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `group-admin-dashboard.spec.ts` | shows why the last request was rejected | Passed |
 | `group-admin-dashboard.spec.ts` | gets names from the group members endpoint, never the full user list | Passed |
 | `group-admin-dashboard.spec.ts` | marks you and disables demoting the only admin | Passed |
+| `group-admin-dashboard.spec.ts` | reloads every panel when the server says this group changed | Passed |
+| `group-admin-dashboard.spec.ts` | ignores changes to other groups | Passed |
+| `group-admin-dashboard.spec.ts` | goes back to chat if another admin demoted you | Passed |
+| `groups.spec.ts` | filters the groups by name or description | Passed |
+| `groups.spec.ts` | reloads when the server says the groups or requests changed | Passed |
 | `groups.spec.ts` | shows Admin, Pending, rejected reason and Apply states | Passed |
 | `groups.spec.ts` | shows Banned with no Apply button for groups you were banned from | Passed |
 | `groups.spec.ts` | sends a join request and shows Pending | Passed |
@@ -532,6 +611,13 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `not-super-admin.guard.spec.ts` | lets normal users through | Passed |
 | `not-super-admin.guard.spec.ts` | sends the super admin to their dashboard | Passed |
 | `login.spec.ts` | should create | Passed |
+| `login.spec.ts` | asks for an email or username | Passed |
+| `login.spec.ts` | checks both fields are filled in before asking the server | Passed |
+| `login.spec.ts` | logs in with a username and goes to the chat page | Passed |
+| `login.spec.ts` | says when the details are wrong | Passed |
+| `login.spec.ts` | shows the server's message when the server refuses the request | Passed |
+| `login.spec.ts` | says when the server cannot be reached | Passed |
+| `my-requests.spec.ts` | reloads when the server says a request was decided | Passed |
 | `my-requests.spec.ts` | lists pending requests of every kind, newest first, with group names | Passed |
 | `my-requests.spec.ts` | lists rejected requests with their reason | Passed |
 | `my-requests.spec.ts` | leaves approved requests out | Passed |
@@ -546,8 +632,20 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `chat-socket.service.spec.ts` | emits room:leave | Passed |
 | `chat-socket.service.spec.ts` | passes incoming messages to messages$ | Passed |
 | `chat-socket.service.spec.ts` | turns presence:joined and presence:left into activity$ events | Passed |
+| `chat-socket.service.spec.ts` | connects by itself as soon as someone is logged in | Passed |
+| `chat-socket.service.spec.ts` | passes refresh and typing events on to the pages | Passed |
+| `chat-socket.service.spec.ts` | shows notifications from the server as pop-ups | Passed |
+| `chat-socket.service.spec.ts` | reports a lost connection and announces when it comes back | Passed |
+| `chat-socket.service.spec.ts` | logs out and goes to the login page when the account is removed | Passed |
+| `chat-socket.service.spec.ts` | sends typing events for a room | Passed |
 | `chat-socket.service.spec.ts` | disconnects when the user logs out | Passed |
+| `notification.service.spec.ts` | shows a message and hides it again after a few seconds | Passed |
+| `notification.service.spec.ts` | can be dismissed straight away | Passed |
+| `notification.service.spec.ts` | keeps only the newest four messages on screen | Passed |
 | `settings.spec.ts` | the back arrow goes to the user's home page | Passed |
+| `settings.spec.ts` | saves dark mode on the account and switches straight away | Passed |
+| `settings.spec.ts` | puts dark mode back and says so if it could not be saved | Passed |
+| `settings.spec.ts` | does not offer My Requests or Submit Report to the super admin | Passed |
 | `settings.spec.ts` | shows the profile details | Passed |
 | `settings.spec.ts` | shows the initial and "Add photo" when there is no photo | Passed |
 | `settings.spec.ts` | uploads a PNG and shows the new photo | Passed |
@@ -555,6 +653,11 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `settings.spec.ts` | removes the photo | Passed |
 | `settings.spec.ts` | shows the server error when the upload is rejected | Passed |
 | `signup.spec.ts` | should create | Passed |
+| `signup.spec.ts` | checks the email before sending | Passed |
+| `signup.spec.ts` | does not allow "@" in a username | Passed |
+| `signup.spec.ts` | requires a date of birth that is not in the future | Passed |
+| `signup.spec.ts` | does not offer future dates in the date picker | Passed |
+| `signup.spec.ts` | sends valid details and shows the server error, e.g. a taken username | Passed |
 | `super-admin-dashboard.spec.ts` | lists group requests | Passed |
 | `super-admin-dashboard.spec.ts` | approves a group request | Passed |
 | `super-admin-dashboard.spec.ts` | lists deletion requests with their reason | Passed |
@@ -565,6 +668,9 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `super-admin-dashboard.spec.ts` | removes the user after confirming and refreshes users and groups | Passed |
 | `super-admin-dashboard.spec.ts` | does not remove if the confirmation is cancelled | Passed |
 | `super-admin-dashboard.spec.ts` | shows the server error, e.g. the user is the only admin of a group | Passed |
+| `super-admin-dashboard.spec.ts` | searches users by username or email | Passed |
+| `super-admin-dashboard.spec.ts` | loads more of the audit log while entries are left | Passed |
+| `super-admin-dashboard.spec.ts` | reloads by itself when the server says something changed | Passed |
 | `super-admin-dashboard.spec.ts` | lists removed accounts with their email, date, report and who asked | Passed |
 | `super-admin-dashboard.spec.ts` | says when nobody has been removed | Passed |
 | `super-admin-dashboard.spec.ts` | lists entries with type, who and what | Passed |
@@ -572,9 +678,13 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `super-admin-dashboard.spec.ts` | filters by type | Passed |
 | `super-admin-dashboard.spec.ts` | switches between newest and oldest first | Passed |
 | `super-admin-dashboard.spec.ts` | refreshes after the super admin acts | Passed |
+| `validation.spec.ts` | accepts normal emails and refuses anything without an @ and a domain | Passed |
+| `validation.spec.ts` | requires a username of at most 30 characters without "@" | Passed |
+| `validation.spec.ts` | requires a real birthdate that is not in the future | Passed |
+| `validation.spec.ts` | only allows whole age limits from 0 to 120 | Passed |
 
 
-### Automated Server Tests (21 scenarios, 430 checks, all passed)
+### Automated Server Tests (28 scenarios, 541 checks, all passed)
 
 The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks, and every check is reported by name when the tests run.
 
@@ -583,6 +693,9 @@ The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks,
 | `auth-and-users.test.js` | Login, signup and password hashing | 18 | Passed |
 | `auth-and-users.test.js` | Changing password | 7 | Passed |
 | `auth-and-users.test.js` | Login tokens and access control | 12 | Passed |
+| `auth-and-users.test.js` | Email or username login, and unique usernames | 13 | Passed |
+| `auth-and-users.test.js` | Sign-up and profile validation | 22 | Passed |
+| `auth-and-users.test.js` | A new birthdate under a group age limit removes you from the group | 7 | Passed |
 | `requests-and-roles.test.js` | Join requests and the age limit | 14 | Passed |
 | `requests-and-roles.test.js` | New group requests | 18 | Passed |
 | `requests-and-roles.test.js` | Room requests and deleting rooms | 20 | Passed |
@@ -598,12 +711,16 @@ The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks,
 | `moderation.test.js` | Banned members list | 16 | Passed |
 | `moderation.test.js` | Removing a user from Fabulari | 47 | Passed |
 | `group-admin.test.js` | Raising the age limit removes under-age members | 33 | Passed |
-| `group-admin.test.js` | Audit log | 43 | Passed |
+| `group-admin.test.js` | Audit log | 48 | Passed |
 | `group-admin.test.js` | Leaving a group | 16 | Passed |
 | `group-admin.test.js` | Editing a room | 17 | Passed |
+| `group-admin.test.js` | Renaming a group | 12 | Passed |
+| `live-updates.test.js` | Live notifications and page refreshes | 23 | Passed |
+| `live-updates.test.js` | Removed members are taken out of live rooms | 24 | Passed |
+| `live-updates.test.js` | Typing indicator | 5 | Passed |
 
 
-### Automated End-to-End Tests (Cypress, 39 tests, all passed)
+### Automated End-to-End Tests (Cypress, 47 tests, all passed)
 
 The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. They run against the real app and the e2e server, and the `fabulari_e2e` database is reset to the demo data before every test.
 
@@ -620,6 +737,8 @@ The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. T
 | `group-admin/admin-dashboard.cy.ts` | A10: bans a member from a report | Passed |
 | `group-admin/admin-dashboard.cy.ts` | A11: edits a room | Passed |
 | `group-admin/admin-dashboard.cy.ts` | A12: deletes a room | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A14: renames the group | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A15: new join requests appear without reloading | Passed |
 | `group-admin/admin-dashboard.cy.ts` | A13: asks the super admin to delete the group | Passed |
 | `group-admin/chat.cy.ts` | A1: only admins see Manage Group | Passed |
 | `user/chat.cy.ts` | U8: sends a message | Passed |
@@ -629,9 +748,14 @@ The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. T
 | `user/chat.cy.ts` | U12: sends a PNG image | Passed |
 | `user/chat.cy.ts` | U13: refuses images that are not PNG | Passed |
 | `user/chat.cy.ts` | U14: shows group members with the admin marked | Passed |
+| `user/chat.cy.ts` | U29: opens an image full size | Passed |
+| `user/chat.cy.ts` | U30: sees when someone else is typing | Passed |
+| `user/chat.cy.ts` | U31: is told straight away when their room request is approved | Passed |
+| `user/chat.cy.ts` | U32: leaves the chat straight away when banned from the group | Passed |
 | `user/chat.cy.ts` | U19: requests a new room | Passed |
 | `user/groups.cy.ts` | U15: asks to join a group | Passed |
 | `user/groups.cy.ts` | U16: under-age users are rejected automatically | Passed |
+| `user/groups.cy.ts` | U28: searches the groups | Passed |
 | `user/groups.cy.ts` | U17: requests a new group | Passed |
 | `user/groups.cy.ts` | U18: a new group needs a name | Passed |
 | `user/groups.cy.ts` | U21: leaves a group | Passed |
@@ -639,10 +763,11 @@ The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. T
 | `user/login.cy.ts` | U4: shows an error for a wrong password | Passed |
 | `user/login.cy.ts` | U5: pages need a login | Passed |
 | `user/login.cy.ts` | U6: logs out | Passed |
+| `user/login.cy.ts` | U27: logs in with the username instead of the email | Passed |
 | `user/login.cy.ts` | U7: shows and hides the password | Passed |
 | `user/my-requests.cy.ts` | U20: lists pending requests | Passed |
 | `user/report.cy.ts` | U22: reports a member | Passed |
-| `user/settings.cy.ts` | U23: dark mode is saved | Passed |
+| `user/settings.cy.ts` | U23: dark mode is saved on the account | Passed |
 | `user/settings.cy.ts` | U24: changes the username | Passed |
 | `user/settings.cy.ts` | U25: changes the password | Passed |
 | `user/settings.cy.ts` | U26: adds and removes a profile photo | Passed |

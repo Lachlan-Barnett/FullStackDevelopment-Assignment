@@ -71,13 +71,22 @@ function makeContext(sockets, check) {
   async function api(method, urlPath, token, body) {
     const res = await fetch(`${baseUrl}/api${urlPath}`, {
       method,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     return { status: res.status, body: await res.json().catch(() => null) };
   }
 
-  async function sendFile(method, urlPath, token, buffer, { field = 'image', filename = 'pic.png', type = 'image/png' } = {}) {
+  async function sendFile(
+    method,
+    urlPath,
+    token,
+    buffer,
+    { field = 'image', filename = 'pic.png', type = 'image/png' } = {},
+  ) {
     const form = new FormData();
     if (buffer) form.append(field, new Blob([buffer], { type }), filename);
     const res = await fetch(`${baseUrl}/api${urlPath}`, {
@@ -91,11 +100,16 @@ function makeContext(sockets, check) {
   // Makes a request and checks its HTTP status in one step; returns the response for further checks.
   async function call(label, expectedStatus, method, urlPath, token, body) {
     const res = await api(method, urlPath, token, body);
-    check(label, res.status === expectedStatus, `expected ${expectedStatus}, got ${res.status} ${JSON.stringify(res.body)}`);
+    check(
+      label,
+      res.status === expectedStatus,
+      `expected ${expectedStatus}, got ${res.status} ${JSON.stringify(res.body)}`,
+    );
     return res;
   }
 
-  const login = async (email, password = '123') => (await api('POST', '/auth', null, { email, password })).body.token;
+  const login = async (email, password = '123') =>
+    (await api('POST', '/auth', null, { email, password })).body.token;
   const signup = async (email, username, birthdate = '1990-01-01', password = 'p') =>
     (await api('POST', '/signup', null, { email, username, birthdate, password })).body.token;
 
@@ -109,11 +123,27 @@ function makeContext(sockets, check) {
       s.on('connect', () => resolve(s));
       s.on('connect_error', (err) => resolve({ error: err.message, close: () => s.close() }));
     });
-  const ask = (socket, event, payload) => new Promise((resolve) => socket.emit(event, payload, resolve));
-  const received = (socket, event) => socket.events.filter((e) => e.event === event).map((e) => e.data);
+  const ask = (socket, event, payload) =>
+    new Promise((resolve) => socket.emit(event, payload, resolve));
+  const received = (socket, event) =>
+    socket.events.filter((e) => e.event === event).map((e) => e.data);
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  return { baseUrl, db, uploadsDir: UPLOADS_DIR, api, call, sendFile, login, signup, connect, ask, received, wait, tinyPng };
+  return {
+    baseUrl,
+    db,
+    uploadsDir: UPLOADS_DIR,
+    api,
+    call,
+    sendFile,
+    login,
+    signup,
+    connect,
+    ask,
+    received,
+    wait,
+    tinyPng,
+  };
 }
 
 // Defines one scenario: a fresh seeded database, then a series of named checks.
@@ -123,7 +153,8 @@ function scenario(name, fn) {
     await seed(db);
     const results = [];
     const sockets = [];
-    const check = (label, condition, detail = '') => results.push({ label, ok: Boolean(condition), detail });
+    const check = (label, condition, detail = '') =>
+      results.push({ label, ok: Boolean(condition), detail });
     try {
       await fn({ check, ...makeContext(sockets, check) });
     } finally {

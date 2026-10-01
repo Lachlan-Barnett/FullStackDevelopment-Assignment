@@ -4,10 +4,12 @@ const { NO_ID } = require('./db');
 const JWT_SECRET = process.env.JWT_SECRET || 'fabulari-dev-secret';
 const TOKEN_EXPIRY = '1d';
 
+// Builds the login token helpers and the Express middleware that check who may use each route.
 function createAuth(db) {
   const users = db.collection('users');
   const groups = db.collection('groups');
 
+  // A login token holding the user's id, valid for one day.
   function signToken(user) {
     return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
   }
@@ -37,6 +39,7 @@ function createAuth(db) {
     next();
   }
 
+  // Must run after requireAuth: only the super admin may continue.
   function requireSuperAdmin(req, res, next) {
     if (req.user.role !== 'superadmin') {
       return res.status(403).json({ message: 'Super admin only' });
@@ -77,7 +80,15 @@ function createAuth(db) {
     next();
   }
 
-  return { signToken, userFromToken, requireAuth, requireSuperAdmin, requireGroupAdmin, requireGroupMember, requireSelf };
+  return {
+    signToken,
+    userFromToken,
+    requireAuth,
+    requireSuperAdmin,
+    requireGroupAdmin,
+    requireGroupMember,
+    requireSelf,
+  };
 }
 
 module.exports = createAuth;

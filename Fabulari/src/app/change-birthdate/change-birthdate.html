@@ -1,10 +1,23 @@
 <div class="card auth-card">
   <div class="card-body">
     <h1 class="auth-title">Change Birthdate</h1>
-    <form (ngSubmit)="onSubmit()">
+    <form (ngSubmit)="onSubmit()" novalidate>
       <div class="form-field">
         <label for="newBirthdate" class="form-label">New Birthdate</label>
-        <input type="date" class="form-control" id="newBirthdate" name="newBirthdate" [(ngModel)]="newBirthdate">
+        <input
+          type="date"
+          class="form-control"
+          id="newBirthdate"
+          name="newBirthdate"
+          min="1900-01-01"
+          [max]="maxBirthdate"
+          aria-describedby="birthdate-hint"
+          [(ngModel)]="newBirthdate"
+        />
+        <span id="birthdate-hint" class="form-hint"
+          >Group age limits are checked against your age. If you become too young for a group, you
+          leave it.</span
+        >
       </div>
       @if (errorMessage()) {
         <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>

@@ -18,11 +18,21 @@ declare global {
       /** Resets the demo database (and uploads) to the seed data. */
       seed(): Chainable<null>;
       /** Calls the REST API. Never fails on error statuses, so tests can check them. */
-      api(method: string, path: string, token?: string | null, body?: object): Chainable<Response<any>>;
+      api(
+        method: string,
+        path: string,
+        token?: string | null,
+        body?: object,
+      ): Chainable<Response<any>>;
       /** Logs in through the API and returns the token and user. */
       apiLogin(email: string, password?: string): Chainable<LoggedIn>;
       /** Signs up a new user through the API and returns their token and id. */
-      apiSignup(email: string, username: string, birthdate?: string, password?: string): Chainable<LoggedIn>;
+      apiSignup(
+        email: string,
+        username: string,
+        birthdate?: string,
+        password?: string,
+      ): Chainable<LoggedIn>;
       /** Signs up a new user and gets them into the "help" group (user1 approves the request). */
       addMemberToHelp(email: string, username: string, birthdate?: string): Chainable<LoggedIn>;
       /** Logs in without the login form (stores the session like the app does) and opens a page. */
@@ -54,21 +64,29 @@ Cypress.Commands.add('apiLogin', (email: string, password = '123') =>
   }),
 );
 
-Cypress.Commands.add('apiSignup', (email: string, username: string, birthdate = '1990-01-01', password = 'p') =>
-  cy.api('POST', '/signup', null, { email, username, birthdate, password }).then((res) => {
-    expect(res.status, `sign up ${email}`).to.eq(200);
-    return { token: res.body.token, id: res.body.id, username: res.body.username };
-  }),
+Cypress.Commands.add(
+  'apiSignup',
+  (email: string, username: string, birthdate = '1990-01-01', password = 'p') =>
+    cy.api('POST', '/signup', null, { email, username, birthdate, password }).then((res) => {
+      expect(res.status, `sign up ${email}`).to.eq(200);
+      return { token: res.body.token, id: res.body.id, username: res.body.username };
+    }),
 );
 
-Cypress.Commands.add('addMemberToHelp', (email: string, username: string, birthdate = '1990-01-01') =>
-  cy.apiSignup(email, username, birthdate).then((member) =>
-    cy.api('POST', '/groups/1/join-requests', member.token, {}).then((join) =>
-      cy.apiLogin('user1@com.au').then((admin) =>
-        cy.api('PUT', `/groups/1/join-requests/${join.body.id}`, admin.token, { approve: true }).then(() => member),
+Cypress.Commands.add(
+  'addMemberToHelp',
+  (email: string, username: string, birthdate = '1990-01-01') =>
+    cy.apiSignup(email, username, birthdate).then((member) =>
+      cy.api('POST', '/groups/1/join-requests', member.token, {}).then((join) =>
+        cy.apiLogin('user1@com.au').then((admin) =>
+          cy
+            .api('PUT', `/groups/1/join-requests/${join.body.id}`, admin.token, {
+              approve: true,
+            })
+            .then(() => member),
+        ),
       ),
     ),
-  ),
 );
 
 Cypress.Commands.add('loginAs', (email: string, path = '/chat', password = '123') =>

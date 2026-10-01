@@ -1,9 +1,11 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { API_URL } from '../api.config';
+import { ChatSocketService } from '../services/chat-socket.service';
 import { Group, GroupRequest, JoinRequest, RequestStatus, RoomRequest } from '../models';
 
 // One row on the page, whatever kind of request it came from.
@@ -26,6 +28,8 @@ interface RequestRow {
 })
 export class MyRequests {
   private readonly http = inject(HttpClient);
+  private readonly chat = inject(ChatSocketService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly rows = signal<RequestRow[]>([]);
   protected readonly loaded = signal(false);
@@ -34,7 +38,16 @@ export class MyRequests {
   protected readonly pending = computed(() => this.rows().filter((r) => r.status === 'pending'));
   protected readonly rejected = computed(() => this.rows().filter((r) => r.status === 'rejected'));
 
+  // Loads the requests, and reloads them whenever the server says one was approved or rejected.
   ngOnInit() {
+    this.load();
+    this.chat.refresh$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({ scope }) => {
+      if (scope === 'requests' || scope === 'groups') this.load();
+    });
+  }
+
+  // Fetches the user's group, room and join requests (and group names) and turns them into rows.
+  private load() {
     forkJoin({
       groups: this.http.get<Group[]>(`${API_URL}/groups`),
       groupRequests: this.http.get<GroupRequest[]>(`${API_URL}/group-requests/mine`),
@@ -42,7 +55,8 @@ export class MyRequests {
       joinRequests: this.http.get<JoinRequest[]>(`${API_URL}/join-requests/mine`),
     }).subscribe({
       next: ({ groups, groupRequests, roomRequests, joinRequests }) => {
-        const groupName = (id: number) => groups.find((g) => g.id === id)?.name ?? 'a deleted group';
+        const groupName = (id: number) =>
+          groups.find((g) => g.id === id)?.name ?? 'a deleted group';
         const rows: RequestRow[] = [
           ...groupRequests.map((r) => ({
             key: `g${r.id}`,

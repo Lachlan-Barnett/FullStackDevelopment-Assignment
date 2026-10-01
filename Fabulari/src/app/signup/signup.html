@@ -1,25 +1,72 @@
 <div class="card auth-card">
   <div class="card-body">
     <h1 class="auth-title">Signup</h1>
-    <form (ngSubmit)="onSubmit()">
+    <form (ngSubmit)="onSubmit()" novalidate>
       <div class="form-field">
         <label for="email" class="form-label">Email</label>
-        <input type="email" class="form-control" id="email" name="email" autocomplete="email" required [(ngModel)]="email">
+        <input
+          type="email"
+          class="form-control"
+          id="email"
+          name="email"
+          autocomplete="email"
+          required
+          [maxlength]="limits.email"
+          [(ngModel)]="email"
+        />
       </div>
       <div class="form-field">
         <label for="username" class="form-label">Username</label>
-        <input type="text" class="form-control" id="username" name="username" autocomplete="username" required [(ngModel)]="username">
+        <input
+          type="text"
+          class="form-control"
+          id="username"
+          name="username"
+          autocomplete="username"
+          required
+          [maxlength]="limits.username"
+          aria-describedby="username-hint"
+          [(ngModel)]="username"
+        />
+        <span id="username-hint" class="form-hint"
+          >Up to {{ limits.username }} characters. You can log in with it instead of your
+          email.</span
+        >
       </div>
       <div class="form-field">
         <label for="dob" class="form-label">Date of Birth</label>
-        <input type="date" class="form-control" id="dob" name="dob" [(ngModel)]="dob">
+        <input
+          type="date"
+          class="form-control"
+          id="dob"
+          name="dob"
+          required
+          min="1900-01-01"
+          [max]="maxBirthdate"
+          [(ngModel)]="dob"
+        />
       </div>
       <div class="form-field">
         <label for="password" class="form-label">Password</label>
-        <input [type]="showPassword() ? 'text' : 'password'" class="form-control" id="password" name="password" autocomplete="new-password" required [(ngModel)]="password">
+        <input
+          [type]="showPassword() ? 'text' : 'password'"
+          class="form-control"
+          id="password"
+          name="password"
+          autocomplete="new-password"
+          required
+          [maxlength]="limits.password"
+          [(ngModel)]="password"
+        />
       </div>
       <div class="form-check text-start">
-        <input type="checkbox" class="form-check-input" id="show-password" aria-controls="password" (change)="togglePasswordVisibility()">
+        <input
+          type="checkbox"
+          class="form-check-input"
+          id="show-password"
+          aria-controls="password"
+          (change)="togglePasswordVisibility()"
+        />
         <label class="form-check-label" for="show-password">Show password</label>
       </div>
       @if (errorMessage()) {
@@ -27,7 +74,9 @@
       }
       <div class="button-row">
         <button type="button" class="btn btn-outline-dark" routerLink="/">Login</button>
-        <button type="submit" class="btn btn-outline-dark">Submit</button>
+        <button type="submit" class="btn btn-outline-dark" [disabled]="sending()">
+          {{ sending() ? 'Signing up…' : 'Submit' }}
+        </button>
       </div>
     </form>
   </div>

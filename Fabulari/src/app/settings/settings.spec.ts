@@ -28,11 +28,17 @@ describe('Settings', () => {
     fixture.detectChanges();
   };
   const pick = (file: File) => ({ files: [file], value: 'x' }) as unknown as HTMLInputElement;
-  const component = () => fixture.componentInstance as unknown as { uploadPhoto(i: HTMLInputElement): void; removePhoto(): void };
+  const component = () =>
+    fixture.componentInstance as unknown as {
+      uploadPhoto(i: HTMLInputElement): void;
+      removePhoto(): void;
+    };
 
   beforeEach(async () => {
     currentUser = signal<CurrentUser | null>(user);
-    updateCurrentUser = vi.fn((changes: Partial<CurrentUser>) => currentUser.update((u) => ({ ...u!, ...changes })));
+    updateCurrentUser = vi.fn((changes: Partial<CurrentUser>) =>
+      currentUser.update((u) => ({ ...u!, ...changes })),
+    );
 
     await TestBed.configureTestingModule({
       imports: [Settings],
@@ -40,7 +46,10 @@ describe('Settings', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AuthService, useValue: { currentUser, updateCurrentUser, homeUrl: signal('/chat') } },
+        {
+          provide: AuthService,
+          useValue: { currentUser, updateCurrentUser, homeUrl: signal('/chat') },
+        },
       ],
     }).compileComponents();
 
@@ -53,6 +62,33 @@ describe('Settings', () => {
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     el().querySelector<HTMLButtonElement>('.back-btn')!.click();
     expect(String(navigate.mock.calls[0][0])).toBe('/chat');
+  });
+
+  it('saves dark mode on the account and switches straight away', async () => {
+    el().querySelector<HTMLInputElement>('#dark-mode')!.click();
+    expect(updateCurrentUser).toHaveBeenCalledWith({ darkMode: true });
+    const put = http.expectOne(`${API_URL}/users/2`);
+    expect(put.request.body).toEqual({ darkMode: true });
+    put.flush({ ...user, darkMode: true });
+    await settle();
+    expect(el().querySelector<HTMLInputElement>('#dark-mode')!.checked).toBe(true);
+  });
+
+  it('puts dark mode back and says so if it could not be saved', async () => {
+    el().querySelector<HTMLInputElement>('#dark-mode')!.click();
+    http
+      .expectOne(`${API_URL}/users/2`)
+      .flush({ message: 'Server unavailable' }, { status: 500, statusText: 'Error' });
+    await settle();
+    expect(updateCurrentUser).toHaveBeenLastCalledWith({ darkMode: false });
+    expect(el().textContent).toContain('Server unavailable');
+  });
+
+  it('does not offer My Requests or Submit Report to the super admin', async () => {
+    currentUser.set({ ...user, role: 'superadmin' });
+    await settle();
+    expect(el().textContent).not.toContain('My Requests');
+    expect(el().textContent).not.toContain('Submit Report');
   });
 
   it('shows the profile details', () => {
@@ -85,7 +121,9 @@ describe('Settings', () => {
     await settle();
     expect(el().textContent).toContain('Profile photos must be PNG images.');
 
-    component().uploadPhoto(pick(new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' })));
+    component().uploadPhoto(
+      pick(new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' })),
+    );
     await settle();
     expect(el().textContent).toContain('Profile photos must be 2MB or smaller.');
     http.expectNone(`${API_URL}/users/2/photo`);
@@ -107,7 +145,10 @@ describe('Settings', () => {
     component().uploadPhoto(pick(new File([new Uint8Array(10)], 'me.png', { type: 'image/png' })));
     http
       .expectOne(`${API_URL}/users/2/photo`)
-      .flush({ message: 'Only PNG images are allowed' }, { status: 400, statusText: 'Bad Request' });
+      .flush(
+        { message: 'Only PNG images are allowed' },
+        { status: 400, statusText: 'Bad Request' },
+      );
     await settle();
     expect(el().textContent).toContain('Only PNG images are allowed');
   });

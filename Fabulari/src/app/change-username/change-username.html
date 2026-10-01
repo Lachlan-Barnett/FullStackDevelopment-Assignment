@@ -1,10 +1,18 @@
 <div class="card auth-card">
   <div class="card-body">
     <h1 class="auth-title">Change Username</h1>
-    <form (ngSubmit)="onSubmit()">
+    <form (ngSubmit)="onSubmit()" novalidate>
       <div class="form-field">
         <label for="newUsername" class="form-label">New Username</label>
-        <input type="text" class="form-control" id="newUsername" name="newUsername" [(ngModel)]="newUsername">
+        <input
+          type="text"
+          class="form-control"
+          id="newUsername"
+          name="newUsername"
+          autocomplete="username"
+          [maxlength]="limits.username"
+          [(ngModel)]="newUsername"
+        />
       </div>
       @if (errorMessage()) {
         <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>

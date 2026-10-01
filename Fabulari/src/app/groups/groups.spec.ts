@@ -6,16 +6,42 @@ import { signal } from '@angular/core';
 import { Groups } from './groups';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { Group, JoinRequest } from '../models';
+import { Group, JoinRequest, RefreshEvent } from '../models';
+import { Subject } from 'rxjs';
+import { ChatSocketService } from '../services/chat-socket.service';
 
 describe('Groups', () => {
+  // Lets a test pretend the server sent a "refresh" event.
+  const liveRefresh = new Subject<RefreshEvent>();
+
   let fixture: ComponentFixture<Groups>;
   let http: HttpTestingController;
 
   const groups: Group[] = [
-    { id: 1, name: 'help', description: 'anything', ageLimit: 13, colourTheme: 'Blue', members: [{ userId: 2, role: 'admin' }] },
-    { id: 2, name: 'games', description: 'play', ageLimit: 16, colourTheme: 'Red', members: [{ userId: 5, role: 'admin' }] },
-    { id: 3, name: 'books', description: 'read', ageLimit: 0, colourTheme: 'Yellow', members: [{ userId: 5, role: 'admin' }] },
+    {
+      id: 1,
+      name: 'help',
+      description: 'anything',
+      ageLimit: 13,
+      colourTheme: 'Blue',
+      members: [{ userId: 2, role: 'admin' }],
+    },
+    {
+      id: 2,
+      name: 'games',
+      description: 'play',
+      ageLimit: 16,
+      colourTheme: 'Red',
+      members: [{ userId: 5, role: 'admin' }],
+    },
+    {
+      id: 3,
+      name: 'books',
+      description: 'read',
+      ageLimit: 0,
+      colourTheme: 'Yellow',
+      members: [{ userId: 5, role: 'admin' }],
+    },
   ];
 
   const el = () => fixture.nativeElement as HTMLElement;
@@ -24,7 +50,9 @@ describe('Groups', () => {
     fixture.detectChanges();
   };
   const button = (text: string) =>
-    [...el().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
+    [...el().querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent?.trim() === text,
+    )!;
   const setInput = async (selector: string, value: string) => {
     const input = el().querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
     input.value = value;
@@ -51,16 +79,45 @@ describe('Groups', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
+        { provide: ChatSocketService, useValue: { refresh$: liveRefresh } },
         { provide: AuthService, useValue: { currentUser: signal({ id: 2, role: 'user' }) } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
   });
 
+  describe('searching and live updates', () => {
+    it('filters the groups by name or description', async () => {
+      await loadPage();
+      await setInput('#groupSearch', 'PLAY');
+      const rows = [...el().querySelectorAll('.group-row')].map((r) => r.textContent ?? '');
+      expect(rows.length).toBe(1);
+      expect(rows[0]).toContain('games');
+      expect(el().textContent).toContain('1 of 3 groups');
+      await setInput('#groupSearch', 'nothing like this');
+      expect(el().textContent).toContain('No groups match "nothing like this".');
+    });
+
+    it('reloads when the server says the groups or requests changed', async () => {
+      await loadPage();
+      liveRefresh.next({ scope: 'requests' });
+      http.expectOne(`${API_URL}/groups`).flush(groups);
+      http.expectOne(`${API_URL}/join-requests/mine`).flush([]);
+    });
+  });
+
   describe('joining', () => {
     it('shows Admin, Pending, rejected reason and Apply states', async () => {
       await loadPage([
-        { id: 1, groupId: 2, userId: 2, status: 'rejected', rejectionReason: 'You must be 16 or older', reviewedBy: null, createdAt: '' },
+        {
+          id: 1,
+          groupId: 2,
+          userId: 2,
+          status: 'rejected',
+          rejectionReason: 'You must be 16 or older',
+          reviewedBy: null,
+          createdAt: '',
+        },
       ]);
       const rows = [...el().querySelectorAll('.group-row')].map((r) => r.textContent ?? '');
       expect(rows[0]).toContain('Admin');
@@ -84,10 +141,20 @@ describe('Groups', () => {
       await loadPage();
       const row = [...el().querySelectorAll('.group-row')][2];
       row.querySelector<HTMLButtonElement>('button')!.click();
-      http.expectOne(`${API_URL}/groups/3/join-requests`).flush({ id: 9, groupId: 3, status: 'pending' });
       http
-        .expectOne(`${API_URL}/join-requests/mine`)
-        .flush([{ id: 9, groupId: 3, userId: 2, status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' }]);
+        .expectOne(`${API_URL}/groups/3/join-requests`)
+        .flush({ id: 9, groupId: 3, status: 'pending' });
+      http.expectOne(`${API_URL}/join-requests/mine`).flush([
+        {
+          id: 9,
+          groupId: 3,
+          userId: 2,
+          status: 'pending',
+          rejectionReason: null,
+          reviewedBy: null,
+          createdAt: '',
+        },
+      ]);
       await settle();
       expect(row.textContent).toContain('Pending');
     });
@@ -95,12 +162,16 @@ describe('Groups', () => {
 
   describe('leaving', () => {
     const leaveButton = () =>
-      [...el().querySelectorAll('.group-row')][0].querySelector<HTMLButtonElement>('button[aria-label="Leave help"]')!;
+      [...el().querySelectorAll('.group-row')][0].querySelector<HTMLButtonElement>(
+        'button[aria-label="Leave help"]',
+      )!;
 
     it('shows a Leave button on groups you belong to', async () => {
       await loadPage();
       expect(leaveButton()).not.toBeNull();
-      expect([...el().querySelectorAll('.group-row')][2].querySelector('button[aria-label^="Leave"]')).toBeNull();
+      expect(
+        [...el().querySelectorAll('.group-row')][2].querySelector('button[aria-label^="Leave"]'),
+      ).toBeNull();
     });
 
     it('leaves after confirming and reloads the groups', async () => {
@@ -110,7 +181,9 @@ describe('Groups', () => {
       const del = http.expectOne(`${API_URL}/groups/1/membership`);
       expect(del.request.method).toBe('DELETE');
       del.flush({ left: true });
-      http.expectOne(`${API_URL}/groups`).flush([{ ...groups[0], members: [{ userId: 9, role: 'admin' }] }, groups[1], groups[2]]);
+      http
+        .expectOne(`${API_URL}/groups`)
+        .flush([{ ...groups[0], members: [{ userId: 9, role: 'admin' }] }, groups[1], groups[2]]);
       await settle();
       expect([...el().querySelectorAll('.group-row')][0].textContent).toContain('Apply');
     });
@@ -126,9 +199,13 @@ describe('Groups', () => {
       await loadPage();
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       leaveButton().click();
-      http
-        .expectOne(`${API_URL}/groups/1/membership`)
-        .flush({ message: 'You are the only admin. Promote another member first, or ask the super admin to delete the group.' }, { status: 409, statusText: 'Conflict' });
+      http.expectOne(`${API_URL}/groups/1/membership`).flush(
+        {
+          message:
+            'You are the only admin. Promote another member first, or ask the super admin to delete the group.',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
       await settle();
       expect(el().textContent).toContain('You are the only admin.');
     });
@@ -142,10 +219,17 @@ describe('Groups', () => {
     });
 
     it('opens the form with labelled fields', () => {
-      for (const id of ['newGroupName', 'newGroupDescription', 'newGroupAgeLimit', 'newGroupColour']) {
+      for (const id of [
+        'newGroupName',
+        'newGroupDescription',
+        'newGroupAgeLimit',
+        'newGroupColour',
+      ]) {
         expect(el().querySelector(`label[for=${id}]`)).not.toBeNull();
       }
-      const colours = [...el().querySelectorAll('#newGroupColour option')].map((o) => o.textContent?.trim());
+      const colours = [...el().querySelectorAll('#newGroupColour option')].map((o) =>
+        o.textContent?.trim(),
+      );
       expect(colours).toEqual(['Blue', 'Yellow', 'Red']);
     });
 
@@ -157,7 +241,12 @@ describe('Groups', () => {
 
       const req = http.expectOne(`${API_URL}/group-requests`);
       expect(req.request.method).toBe('POST');
-      expect(req.request.body).toEqual({ name: 'Chess', description: 'Chess talk', ageLimit: 12, colourTheme: 'Blue' });
+      expect(req.request.body).toEqual({
+        name: 'Chess',
+        description: 'Chess talk',
+        ageLimit: 12,
+        colourTheme: 'Blue',
+      });
       req.flush({ id: 1, name: 'Chess' });
       await settle();
 
@@ -184,7 +273,10 @@ describe('Groups', () => {
       await submitRequestForm();
       http
         .expectOne(`${API_URL}/group-requests`)
-        .flush({ message: 'A group with that name already exists' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'A group with that name already exists' },
+          { status: 409, statusText: 'Conflict' },
+        );
       await settle();
       expect(el().textContent).toContain('A group with that name already exists');
       expect(el().querySelector<HTMLInputElement>('#newGroupName')!.value).toBe('help');

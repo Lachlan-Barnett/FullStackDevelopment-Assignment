@@ -6,9 +6,23 @@ import { signal } from '@angular/core';
 import { GroupAdminDashboard } from './group-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { BannedMember, Group, JoinRequest, Report, Room, RoomRequest, User } from '../models';
+import {
+  BannedMember,
+  Group,
+  JoinRequest,
+  Report,
+  Room,
+  RoomRequest,
+  User,
+  RefreshEvent,
+} from '../models';
+import { Subject } from 'rxjs';
+import { ChatSocketService } from '../services/chat-socket.service';
 
 describe('GroupAdminDashboard', () => {
+  // Lets a test pretend the server sent a "refresh" event.
+  const liveRefresh = new Subject<RefreshEvent>();
+
   let fixture: ComponentFixture<GroupAdminDashboard>;
   let http: HttpTestingController;
 
@@ -39,16 +53,48 @@ describe('GroupAdminDashboard', () => {
     createdAt: '2026-09-29T01:00:00.000Z',
   };
   const report: Report = {
-    id: 8, reportedUserId: 3, reportedBy: 7, groupId: 1, reason: 'spamming the room', status: 'pending',
-    createdAt: '2026-09-30T01:00:00.000Z', reporterName: 'newbie', reportedName: 'user2',
+    id: 8,
+    reportedUserId: 3,
+    reportedBy: 7,
+    groupId: 1,
+    reason: 'spamming the room',
+    status: 'pending',
+    createdAt: '2026-09-30T01:00:00.000Z',
+    reporterName: 'newbie',
+    reportedName: 'user2',
   };
   const roomRequests: RoomRequest[] = [
-    { id: 1, groupId: 1, requestedBy: 3, requesterName: 'user2', name: 'memes', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
-    { id: 2, groupId: 1, requestedBy: 2, requesterName: 'user1', name: 'news', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
+    {
+      id: 1,
+      groupId: 1,
+      requestedBy: 3,
+      requesterName: 'user2',
+      name: 'memes',
+      description: '',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: '',
+    },
+    {
+      id: 2,
+      groupId: 1,
+      requestedBy: 2,
+      requesterName: 'user1',
+      name: 'news',
+      description: '',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: '',
+    },
   ];
 
   const namesFor = (members: { userId: number; role: string }[]) =>
-    members.map((m) => ({ ...m, username: users.find((u) => u.id === m.userId)?.username ?? null }));
+    members.map((m) => ({
+      ...m,
+      username: users.find((u) => u.id === m.userId)?.username ?? null,
+    }));
 
   const el = () => fixture.nativeElement as HTMLElement;
   const settle = async () => {
@@ -56,11 +102,21 @@ describe('GroupAdminDashboard', () => {
     fixture.detectChanges();
   };
   const panel = (title: string) =>
-    [...el().querySelectorAll('.panel')].find((p) => p.querySelector('.panel-title')?.textContent?.trim() === title)!;
+    [...el().querySelectorAll('.panel')].find(
+      (p) => p.querySelector('.panel-title')?.textContent?.trim() === title,
+    )!;
   const buttonIn = (root: Element, text: string) =>
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === text)!;
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent?.trim() === text,
+    )!;
 
-  async function loadPage(joins: JoinRequest[] = [joinRequest], deletes: object[] = [], reports: Report[] = [report], banned: BannedMember[] = [], roomList: Room[] = []) {
+  async function loadPage(
+    joins: JoinRequest[] = [joinRequest],
+    deletes: object[] = [],
+    reports: Report[] = [report],
+    banned: BannedMember[] = [],
+    roomList: Room[] = [],
+  ) {
     fixture = TestBed.createComponent(GroupAdminDashboard);
     fixture.detectChanges();
     http.expectOne(`${API_URL}/groups/1`).flush(group);
@@ -81,7 +137,11 @@ describe('GroupAdminDashboard', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ groupId: '1' }) } } },
+        { provide: ChatSocketService, useValue: { refresh$: liveRefresh } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ groupId: '1' }) } },
+        },
         { provide: AuthService, useValue: { currentUser: signal({ id: 2, role: 'user' }) } },
       ],
     });
@@ -90,7 +150,9 @@ describe('GroupAdminDashboard', () => {
 
   describe('group details', () => {
     async function save(ageLimit: string) {
-      const age = panel('Group Details').querySelector<HTMLInputElement>('input[name=editAgeLimit]')!;
+      const age = panel('Group Details').querySelector<HTMLInputElement>(
+        'input[name=editAgeLimit]',
+      )!;
       age.value = ageLimit;
       age.dispatchEvent(new Event('input'));
       await settle();
@@ -101,25 +163,76 @@ describe('GroupAdminDashboard', () => {
 
     it('warns that raising the age limit removes members', async () => {
       await loadPage();
-      expect(panel('Group Details').textContent).toContain('Raising the age limit removes members who are now too young.');
+      expect(panel('Group Details').textContent).toContain(
+        'Raising the age limit removes members who are now too young.',
+      );
     });
 
     it('saves and names anyone removed by a higher age limit', async () => {
       await loadPage();
       const put = await save('18');
       expect(put.request.method).toBe('PUT');
-      expect(put.request.body).toEqual({ description: 'anything', ageLimit: 18, colourTheme: 'Blue' });
-      put.flush({ ...group, ageLimit: 18, members: [group.members[0]], removedMembers: [{ userId: 3, username: 'user2' }] });
+      expect(put.request.body).toEqual({
+        name: 'help',
+        description: 'anything',
+        ageLimit: 18,
+        colourTheme: 'Blue',
+      });
+      put.flush({
+        ...group,
+        ageLimit: 18,
+        members: [group.members[0]],
+        removedMembers: [{ userId: 3, username: 'user2' }],
+      });
       await settle();
-      expect(panel('Group Details').textContent).toContain('Removed 1 member(s) under the new age limit: user2.');
+      expect(panel('Group Details').textContent).toContain(
+        'Removed 1 member(s) under the new age limit: user2.',
+      );
       expect(panel('Members').textContent).not.toContain('user2');
+    });
+
+    it('renames the group', async () => {
+      await loadPage();
+      const name = panel('Group Details').querySelector<HTMLInputElement>('input[name=editName]')!;
+      expect(name.value).toBe('help');
+      name.value = 'Help Desk';
+      name.dispatchEvent(new Event('input'));
+      const put = await save('13');
+      expect(put.request.body.name).toBe('Help Desk');
+    });
+
+    it('checks the name and age limit before saving', async () => {
+      await loadPage();
+      const name = panel('Group Details').querySelector<HTMLInputElement>('input[name=editName]')!;
+      name.value = '   ';
+      name.dispatchEvent(new Event('input'));
+      await settle();
+      panel('Group Details').querySelector('form')!.dispatchEvent(new Event('submit'));
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain('needs a name');
+      name.value = 'help';
+      name.dispatchEvent(new Event('input'));
+      const age = panel('Group Details').querySelector<HTMLInputElement>(
+        'input[name=editAgeLimit]',
+      )!;
+      age.value = '200';
+      age.dispatchEvent(new Event('input'));
+      await settle();
+      panel('Group Details').querySelector('form')!.dispatchEvent(new Event('submit'));
+      await settle();
+      expect(el().querySelector('.error-text')?.textContent).toContain(
+        'Age limit must be a whole number from 0 to 120.',
+      );
+      http.expectNone(`${API_URL}/groups/1`);
     });
 
     it('says Saved when nobody was removed', async () => {
       await loadPage();
       (await save('13')).flush({ ...group, removedMembers: [] });
       await settle();
-      expect(panel('Group Details').querySelector('[role=status]')?.textContent?.trim()).toBe('Saved.');
+      expect(panel('Group Details').querySelector('[role=status]')?.textContent?.trim()).toBe(
+        'Saved.',
+      );
     });
 
     it('leaves the dashboard if the admin removed themselves', async () => {
@@ -133,11 +246,16 @@ describe('GroupAdminDashboard', () => {
     it('shows the server error, e.g. no admin would be left', async () => {
       await loadPage();
       (await save('99')).flush(
-        { message: 'An age limit of 99 would leave the group with no admin. Promote an older member first.' },
+        {
+          message:
+            'An age limit of 99 would leave the group with no admin. Promote an older member first.',
+        },
         { status: 409, statusText: 'Conflict' },
       );
       await settle();
-      expect(el().querySelector('.error-text')?.textContent).toContain('would leave the group with no admin');
+      expect(el().querySelector('.error-text')?.textContent).toContain(
+        'would leave the group with no admin',
+      );
     });
   });
 
@@ -191,17 +309,23 @@ describe('GroupAdminDashboard', () => {
       buttonIn(panel('Join Requests'), 'Approve').click();
       http
         .expectOne(`${API_URL}/groups/1/join-requests/4`)
-        .flush({ message: 'That user no longer meets the group age limit' }, { status: 400, statusText: 'Bad Request' });
+        .flush(
+          { message: 'That user no longer meets the group age limit' },
+          { status: 400, statusText: 'Bad Request' },
+        );
       http.expectOne(`${API_URL}/groups/1/join-requests`).flush([joinRequest]);
       await settle();
-      expect(el().querySelector('.error-text')?.textContent).toContain('That user no longer meets the group age limit');
+      expect(el().querySelector('.error-text')?.textContent).toContain(
+        'That user no longer meets the group age limit',
+      );
     });
   });
 
   describe('editing channels', () => {
     const start: Room = { id: 1, groupId: 1, name: 'strat', description: 'typo' };
     const load = () => loadPage([], [], [], [], [start]);
-    const editButton = () => panel('Channels').querySelector<HTMLButtonElement>('button[aria-label="Edit strat"]')!;
+    const editButton = () =>
+      panel('Channels').querySelector<HTMLButtonElement>('button[aria-label="Edit strat"]')!;
     async function type(id: string, value: string) {
       const input = panel('Channels').querySelector<HTMLInputElement>(`#${id}`)!;
       input.value = value;
@@ -213,7 +337,9 @@ describe('GroupAdminDashboard', () => {
       await load();
       editButton().click();
       await settle();
-      expect(panel('Channels').querySelector<HTMLInputElement>('#room-name-1')!.value).toBe('strat');
+      expect(panel('Channels').querySelector<HTMLInputElement>('#room-name-1')!.value).toBe(
+        'strat',
+      );
       expect(panel('Channels').querySelector<HTMLInputElement>('#room-desc-1')!.value).toBe('typo');
     });
 
@@ -228,7 +354,9 @@ describe('GroupAdminDashboard', () => {
       expect(put.request.method).toBe('PUT');
       expect(put.request.body).toEqual({ name: 'start', description: 'fixed' });
       put.flush({ ...start, name: 'start', description: 'fixed' });
-      http.expectOne(`${API_URL}/groups/1/rooms`).flush([{ ...start, name: 'start', description: 'fixed' }]);
+      http
+        .expectOne(`${API_URL}/groups/1/rooms`)
+        .flush([{ ...start, name: 'start', description: 'fixed' }]);
       await settle();
       expect(panel('Channels').querySelector('form')).toBeNull();
       expect(panel('Channels').textContent).toContain('start — fixed');
@@ -237,7 +365,9 @@ describe('GroupAdminDashboard', () => {
     it('asks before deleting a channel', async () => {
       await load();
       const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-      panel('Channels').querySelector<HTMLButtonElement>('button[aria-label="Delete strat"]')!.click();
+      panel('Channels')
+        .querySelector<HTMLButtonElement>('button[aria-label="Delete strat"]')!
+        .click();
       expect(confirmSpy).toHaveBeenCalled();
       http.expectNone(`${API_URL}/groups/1/rooms/1`);
     });
@@ -271,9 +401,14 @@ describe('GroupAdminDashboard', () => {
       panel('Channels').querySelector('form')!.dispatchEvent(new Event('submit'));
       http
         .expectOne(`${API_URL}/groups/1/rooms/1`)
-        .flush({ message: 'This group already has a room with that name' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'This group already has a room with that name' },
+          { status: 409, statusText: 'Conflict' },
+        );
       await settle();
-      expect(el().querySelector('.error-text')?.textContent).toContain('already has a room with that name');
+      expect(el().querySelector('.error-text')?.textContent).toContain(
+        'already has a room with that name',
+      );
       expect(panel('Channels').querySelector('form')).not.toBeNull();
     });
   });
@@ -291,7 +426,9 @@ describe('GroupAdminDashboard', () => {
       await loadPage();
       buttonIn(panel('Channel Requests'), 'Reject').click();
       await settle();
-      expect(el().querySelector('.error-text')?.textContent).toContain('Enter a reason before rejecting "memes".');
+      expect(el().querySelector('.error-text')?.textContent).toContain(
+        'Enter a reason before rejecting "memes".',
+      );
       http.expectNone(`${API_URL}/groups/1/room-requests/1`);
     });
   });
@@ -315,9 +452,15 @@ describe('GroupAdminDashboard', () => {
       http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
       http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [group.members[0]] });
       http.expectOne(`${API_URL}/groups/1/members`).flush(namesFor([group.members[0]]));
-      http
-        .expectOne(`${API_URL}/groups/1/banned`)
-        .flush([{ userId: 3, username: 'user2', bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: 'spamming the room' }]);
+      http.expectOne(`${API_URL}/groups/1/banned`).flush([
+        {
+          userId: 3,
+          username: 'user2',
+          bannedAt: '2026-09-30T02:00:00.000Z',
+          bannedByName: 'user1',
+          reason: 'spamming the room',
+        },
+      ]);
       await settle();
       expect(panel('Reports').textContent).toContain('No reports to review.');
       expect(panel('Members').textContent).not.toContain('user2');
@@ -365,7 +508,10 @@ describe('GroupAdminDashboard', () => {
       buttonIn(panel('Reports'), 'Ban from group').click();
       http
         .expectOne(`${API_URL}/groups/1/reports/8`)
-        .flush({ message: 'Admins cannot be banned. Demote them first.' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'Admins cannot be banned. Demote them first.' },
+          { status: 409, statusText: 'Conflict' },
+        );
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('Admins cannot be banned');
     });
@@ -373,9 +519,20 @@ describe('GroupAdminDashboard', () => {
 
   describe('banned members', () => {
     it('lists banned users with when, by whom and why', async () => {
-      await loadPage([], [], [], [
-        { userId: 3, username: 'user2', bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: 'spamming' },
-      ]);
+      await loadPage(
+        [],
+        [],
+        [],
+        [
+          {
+            userId: 3,
+            username: 'user2',
+            bannedAt: '2026-09-30T02:00:00.000Z',
+            bannedByName: 'user1',
+            reason: 'spamming',
+          },
+        ],
+      );
       const text = panel('Banned Members').textContent?.replace(/\s+/g, ' ') ?? '';
       expect(text).toContain('user2');
       expect(text).toContain('banned 30 Sep 2026 by user1');
@@ -383,19 +540,44 @@ describe('GroupAdminDashboard', () => {
     });
 
     it('shows accounts removed from Fabulari as "Removed user"', async () => {
-      await loadPage([], [], [], [{ userId: 9, username: null, bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: null }]);
+      await loadPage(
+        [],
+        [],
+        [],
+        [
+          {
+            userId: 9,
+            username: null,
+            bannedAt: '2026-09-30T02:00:00.000Z',
+            bannedByName: 'user1',
+            reason: null,
+          },
+        ],
+      );
       expect(panel('Banned Members').textContent).toContain('Removed user');
     });
 
     it('shows an empty note and no unban option', async () => {
       await loadPage();
-      expect(panel('Banned Members').textContent).toContain('Nobody has been banned from this group.');
+      expect(panel('Banned Members').textContent).toContain(
+        'Nobody has been banned from this group.',
+      );
       expect(panel('Banned Members').querySelector('button')).toBeNull();
     });
   });
 
   describe('deleting the group', () => {
-    const pendingDelete = { id: 1, groupId: 1, groupName: 'help', requestedBy: 2, reason: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '2026-09-30T01:00:00.000Z' };
+    const pendingDelete = {
+      id: 1,
+      groupId: 1,
+      groupName: 'help',
+      requestedBy: 2,
+      reason: '',
+      status: 'pending',
+      rejectionReason: null,
+      reviewedBy: null,
+      createdAt: '2026-09-30T01:00:00.000Z',
+    };
 
     it('sends a deletion request after confirming', async () => {
       await loadPage();
@@ -429,7 +611,10 @@ describe('GroupAdminDashboard', () => {
     });
 
     it('shows why the last request was rejected', async () => {
-      await loadPage([joinRequest], [{ ...pendingDelete, status: 'rejected', rejectionReason: 'still active' }]);
+      await loadPage(
+        [joinRequest],
+        [{ ...pendingDelete, status: 'rejected', rejectionReason: 'still active' }],
+      );
       expect(panel('Delete Group').textContent).toContain('rejected: still active');
       expect(buttonIn(panel('Delete Group'), 'Request deletion')).toBeDefined();
     });
@@ -448,6 +633,44 @@ describe('GroupAdminDashboard', () => {
       expect(rows[0].textContent).toContain('user1 (you)');
       expect(rows[0].querySelector('button')!.disabled).toBe(true);
       expect(rows[1].querySelector('button')!.disabled).toBe(false);
+    });
+  });
+
+  describe('live updates', () => {
+    it('reloads every panel when the server says this group changed', async () => {
+      await loadPage([]);
+      liveRefresh.next({ scope: 'group-admin', groupId: 1 });
+      http.expectOne(`${API_URL}/groups/1`).flush(group);
+      http.expectOne(`${API_URL}/groups/1/rooms`).flush([]);
+      http.expectOne(`${API_URL}/groups/1/room-requests`).flush([]);
+      http.expectOne(`${API_URL}/groups/1/join-requests`).flush([joinRequest]);
+      http.expectOne(`${API_URL}/groups/1/delete-requests`).flush([]);
+      http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
+      http.expectOne(`${API_URL}/groups/1/banned`).flush([]);
+      http.expectOne(`${API_URL}/groups/1/members`).flush(namesFor(group.members));
+      await settle();
+      expect(panel('Join Requests').textContent).toContain('newbie');
+    });
+
+    it('ignores changes to other groups', async () => {
+      await loadPage();
+      liveRefresh.next({ scope: 'group-admin', groupId: 2 });
+      http.expectNone(`${API_URL}/groups/1`);
+    });
+
+    it('goes back to chat if another admin demoted you', async () => {
+      await loadPage();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+      liveRefresh.next({ scope: 'group-admin', groupId: 1 });
+      http.expectOne(`${API_URL}/groups/1`).flush({
+        ...group,
+        members: [
+          { userId: 2, role: 'member' },
+          { userId: 3, role: 'admin' },
+        ],
+      });
+      await settle();
+      expect(navigate).toHaveBeenCalledWith('/chat');
     });
   });
 });

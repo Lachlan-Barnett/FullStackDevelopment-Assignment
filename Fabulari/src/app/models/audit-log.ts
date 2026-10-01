@@ -9,3 +9,10 @@ export interface AuditLogEntry {
   details: string;
   timestamp: string;
 }
+
+// One page of the audit log, with every type seen so far (for the filter) and how many entries match.
+export interface AuditLogPage {
+  types: string[];
+  entries: AuditLogEntry[];
+  total: number;
+}

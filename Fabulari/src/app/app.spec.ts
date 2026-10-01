@@ -1,13 +1,25 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
 import { App } from './app';
+import { AuthService } from './services/auth.service';
+import { ChatSocketService } from './services/chat-socket.service';
+import { NotificationService } from './services/notification.service';
+import { User } from './models';
 
 describe('App', () => {
+  const currentUser = signal<Partial<User> | null>(null);
+
   beforeEach(async () => {
     document.body.classList.remove('dark-theme');
+    currentUser.set(null);
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { currentUser } },
+        { provide: ChatSocketService, useValue: {} },
+      ],
     }).compileComponents();
   });
 
@@ -23,14 +35,34 @@ describe('App', () => {
     expect(logo?.getAttribute('src')).toBe('fabulari-logo.png');
   });
 
-  it('should apply dark mode on start-up when it was saved', () => {
-    localStorage.setItem('darkMode', 'true');
-    TestBed.createComponent(App);
+  it("applies the logged-in user's saved dark mode setting", async () => {
+    currentUser.set({ id: 3, darkMode: true });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
     expect(document.body.classList.contains('dark-theme')).toBe(true);
   });
 
-  it('should stay in light mode by default', () => {
-    TestBed.createComponent(App);
+  it('switches straight away when the setting changes, and is light when logged out', async () => {
+    currentUser.set({ id: 3, darkMode: true });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    currentUser.set({ id: 3, darkMode: false });
+    await fixture.whenStable();
     expect(document.body.classList.contains('dark-theme')).toBe(false);
+    currentUser.set({ id: 3, darkMode: true });
+    await fixture.whenStable();
+    currentUser.set(null);
+    await fixture.whenStable();
+    expect(document.body.classList.contains('dark-theme')).toBe(false);
+  });
+
+  it('shows pop-up notifications on every page', async () => {
+    const fixture = TestBed.createComponent(App);
+    TestBed.inject(NotificationService).show('Your room was approved');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.toast-card')?.textContent,
+    ).toContain('Your room was approved');
   });
 });

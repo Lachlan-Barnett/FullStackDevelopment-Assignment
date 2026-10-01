@@ -1,12 +1,30 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { ChatSocketService } from '../services/chat-socket.service';
 import { API_URL } from '../api.config';
-import { BannedMember, COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, GroupMemberDetails, JoinRequest, Report, Room, RoomRequest } from '../models';
+import {
+  BannedMember,
+  COLOUR_THEMES,
+  ColourTheme,
+  Group,
+  GroupDeleteRequest,
+  GroupMember,
+  GroupMemberDetails,
+  JoinRequest,
+  Report,
+  Room,
+  RoomRequest,
+} from '../models';
+import { ageLimitError, LIMITS } from '../validation';
 
+// Everything a group admin manages for one group: its details, join requests, reports, members,
+// banned members, channels, channel requests and asking for the group's deletion.
+// Only admins of the group can open it (groupAdminGuard), and the server checks every action again.
 @Component({
   selector: 'app-group-admin-dashboard',
   imports: [FormsModule, RouterLink, DatePipe],
@@ -18,6 +36,8 @@ export class GroupAdminDashboard {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly chat = inject(ChatSocketService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly group = signal<Group | null>(null);
@@ -26,6 +46,8 @@ export class GroupAdminDashboard {
   protected readonly memberNames = signal<GroupMemberDetails[]>([]);
   protected readonly errorMessage = signal('');
   protected readonly saveNotice = signal('');
+  protected readonly limits = LIMITS;
+  private groupId = 0;
 
   protected readonly roomRequests = signal<RoomRequest[]>([]);
   protected rejectReasons: Record<number, string> = {};
@@ -36,9 +58,13 @@ export class GroupAdminDashboard {
 
   // Deleting the group is a request to the super admin.
   protected readonly deleteRequests = signal<GroupDeleteRequest[]>([]);
-  protected readonly pendingDelete = computed(() => this.deleteRequests().find((r) => r.status === 'pending') ?? null);
+  protected readonly pendingDelete = computed(
+    () => this.deleteRequests().find((r) => r.status === 'pending') ?? null,
+  );
   protected readonly lastRejectedDelete = computed(() =>
-    this.pendingDelete() ? null : (this.deleteRequests().find((r) => r.status === 'rejected') ?? null),
+    this.pendingDelete()
+      ? null
+      : (this.deleteRequests().find((r) => r.status === 'rejected') ?? null),
   );
   protected readonly deleteReason = signal('');
 
@@ -46,6 +72,7 @@ export class GroupAdminDashboard {
   protected readonly joinRequests = signal<JoinRequest[]>([]);
   protected joinRejectReasons: Record<number, string> = {};
 
+  protected editName = '';
   protected editDescription = '';
   protected editAgeLimit = 0;
   protected editColourTheme: ColourTheme = 'Blue';
@@ -60,54 +87,98 @@ export class GroupAdminDashboard {
     }));
   });
 
+  // Loads every panel, then reloads them whenever the server says something in this group changed
+  // (a new join request or report, another admin's decision...), so the page is always up to date.
   ngOnInit() {
-    const groupID = Number(this.route.snapshot.paramMap.get('groupId'));
-    this.loadGroup(groupID);
-    this.loadRooms(groupID);
-    this.loadRoomRequests(groupID);
-    this.loadJoinRequests(groupID);
-    this.loadDeleteRequests(groupID);
-    this.loadReports(groupID);
-    this.loadBanned(groupID);
+    this.groupId = Number(this.route.snapshot.paramMap.get('groupId'));
+    this.loadAll();
+    this.chat.refresh$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((event) => {
+      if (event.scope === 'group-admin' && event.groupId === this.groupId) this.loadAll();
+    });
   }
 
+  // Loads (or reloads) every panel on the page.
+  private loadAll() {
+    const groupId = this.groupId;
+    this.loadGroup(groupId);
+    this.loadRooms(groupId);
+    this.loadRoomRequests(groupId);
+    this.loadJoinRequests(groupId);
+    this.loadDeleteRequests(groupId);
+    this.loadReports(groupId);
+    this.loadBanned(groupId);
+  }
+
+  // The group's details and members. If the user is no longer an admin (another admin demoted them)
+  // or the group has been deleted, they are sent back to the chat page.
   private loadGroup(groupId: number) {
     this.http.get<Group>(`${API_URL}/groups/${groupId}`).subscribe({
       next: (group) => {
+        const userId = this.currentUserId();
+        if (!group.members.some((m) => m.userId === userId && m.role === 'admin')) {
+          this.router.navigateByUrl('/chat');
+          return;
+        }
         this.group.set(group);
+        this.editName = group.name;
         this.editDescription = group.description;
         this.editAgeLimit = group.ageLimit;
         this.editColourTheme = group.colourTheme;
         this.loadMemberNames(groupId); // membership may have changed
       },
-      error: () => this.errorMessage.set('Unable to load this group.'),
+      error: (err) => {
+        if (err.status === 404) this.router.navigateByUrl('/chat');
+        else this.errorMessage.set('Unable to load this group.');
+      },
     });
   }
 
+  // Usernames for the members list (the group itself only stores user ids).
   private loadMemberNames(groupId: number) {
     this.http.get<GroupMemberDetails[]>(`${API_URL}/groups/${groupId}/members`).subscribe({
       next: (members) => this.memberNames.set(members),
     });
   }
 
+  // The group's channels.
   private loadRooms(groupId: number) {
     this.http.get<Room[]>(`${API_URL}/groups/${groupId}/rooms`).subscribe({
       next: (rooms) => this.rooms.set(rooms),
     });
   }
 
+  // Checks and saves the name, description, age limit and colour. Raising the age limit can remove members.
   saveGroupDetails() {
     const group = this.group();
     if (!group) return;
 
     this.errorMessage.set('');
     this.saveNotice.set('');
+    const name = this.editName.trim();
+    if (!name || name.length > LIMITS.name) {
+      this.errorMessage.set(`The group needs a name of at most ${LIMITS.name} characters.`);
+      return;
+    }
+    if (this.editDescription.trim().length > LIMITS.description) {
+      this.errorMessage.set(`Descriptions can be at most ${LIMITS.description} characters.`);
+      return;
+    }
+    const ageProblem = ageLimitError(this.editAgeLimit);
+    if (ageProblem) {
+      this.errorMessage.set(ageProblem);
+      return;
+    }
+
     this.http
-      .put<Group & { removedMembers: { userId: number; username: string }[] }>(`${API_URL}/groups/${group.id}`, {
-        description: this.editDescription,
-        ageLimit: this.editAgeLimit,
-        colourTheme: this.editColourTheme,
-      })
+      .put<Group & { removedMembers: { userId: number; username: string }[] }>(
+        `${API_URL}/groups/${group.id}`,
+        {
+          name,
+          description: this.editDescription,
+          ageLimit: this.editAgeLimit,
+          colourTheme: this.editColourTheme,
+        },
+      )
       .subscribe({
         next: ({ removedMembers, ...updated }) => {
           // Raising the age limit can remove the admin themselves; then they can't manage the group any more.
@@ -126,12 +197,14 @@ export class GroupAdminDashboard {
       });
   }
 
+  // Channel requests waiting for a decision.
   private loadRoomRequests(groupId: number) {
     this.http.get<RoomRequest[]>(`${API_URL}/groups/${groupId}/room-requests`).subscribe({
       next: (requests) => this.roomRequests.set(requests),
     });
   }
 
+  // Approves a channel request (creating the channel) or rejects it, which needs a reason.
   actionRoomRequest(request: RoomRequest, approve: boolean) {
     const group = this.group();
     if (!group) return;
@@ -151,22 +224,26 @@ export class GroupAdminDashboard {
           this.loadRoomRequests(group.id);
           if (approve) this.loadRooms(group.id);
         },
-        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
+        error: (err) =>
+          this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
       });
   }
 
+  // Reports waiting for a decision.
   private loadReports(groupId: number) {
     this.http.get<Report[]>(`${API_URL}/groups/${groupId}/reports`).subscribe({
       next: (reports) => this.reports.set(reports),
     });
   }
 
+  // Everyone banned from this group.
   private loadBanned(groupId: number) {
     this.http.get<BannedMember[]>(`${API_URL}/groups/${groupId}/banned`).subscribe({
       next: (banned) => this.banned.set(banned),
     });
   }
 
+  // Admins can't act on reports they filed themselves (no self-approval); another admin must.
   isOwnReport(report: Report) {
     return report.reportedBy === this.currentUserId();
   }
@@ -179,16 +256,19 @@ export class GroupAdminDashboard {
     if (action === 'ban' && !confirm(`Ban ${name} from ${group.name}? Bans are permanent.`)) return;
 
     this.errorMessage.set('');
-    this.http.put<Report>(`${API_URL}/groups/${group.id}/reports/${report.id}`, { action }).subscribe({
-      next: () => {
-        this.loadReports(group.id);
-        if (action === 'ban') {
-          this.loadGroup(group.id); // they're no longer a member
-          this.loadBanned(group.id);
-        }
-      },
-      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that report.'),
-    });
+    this.http
+      .put<Report>(`${API_URL}/groups/${group.id}/reports/${report.id}`, { action })
+      .subscribe({
+        next: () => {
+          this.loadReports(group.id);
+          if (action === 'ban') {
+            this.loadGroup(group.id); // they're no longer a member
+            this.loadBanned(group.id);
+          }
+        },
+        error: (err) =>
+          this.errorMessage.set(err.error?.message ?? 'Unable to action that report.'),
+      });
   }
 
   // Asks the super admin to remove the reported user from Fabulari altogether.
@@ -196,7 +276,11 @@ export class GroupAdminDashboard {
     const group = this.group();
     if (!group) return;
     const name = report.reportedName ?? `User #${report.reportedUserId}`;
-    if (!confirm(`Ask the super admin to remove ${name} from Fabulari? If approved, their account is deleted for good.`)) {
+    if (
+      !confirm(
+        `Ask the super admin to remove ${name} from Fabulari? If approved, their account is deleted for good.`,
+      )
+    ) {
       return;
     }
 
@@ -207,31 +291,41 @@ export class GroupAdminDashboard {
     });
   }
 
+  // This group's deletion requests, to show one is waiting or why the last one was rejected.
   private loadDeleteRequests(groupId: number) {
     this.http.get<GroupDeleteRequest[]>(`${API_URL}/groups/${groupId}/delete-requests`).subscribe({
       next: (requests) => this.deleteRequests.set(requests),
     });
   }
 
+  // Asks the super admin to delete the group, after confirming.
   requestDeletion() {
     const group = this.group();
     if (!group) return;
-    if (!confirm(`Ask the super admin to delete "${group.name}"? If approved, all its rooms and messages are removed.`)) {
+    if (
+      !confirm(
+        `Ask the super admin to delete "${group.name}"? If approved, all its rooms and messages are removed.`,
+      )
+    ) {
       return;
     }
 
     this.errorMessage.set('');
     this.http
-      .post<GroupDeleteRequest>(`${API_URL}/groups/${group.id}/delete-requests`, { reason: this.deleteReason().trim() })
+      .post<GroupDeleteRequest>(`${API_URL}/groups/${group.id}/delete-requests`, {
+        reason: this.deleteReason().trim(),
+      })
       .subscribe({
         next: () => {
           this.deleteReason.set('');
           this.loadDeleteRequests(group.id);
         },
-        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to send the deletion request.'),
+        error: (err) =>
+          this.errorMessage.set(err.error?.message ?? 'Unable to send the deletion request.'),
       });
   }
 
+  // Join requests waiting for a decision.
   private loadJoinRequests(groupId: number) {
     this.http.get<JoinRequest[]>(`${API_URL}/groups/${groupId}/join-requests`).subscribe({
       next: (requests) => this.joinRequests.set(requests),
@@ -262,6 +356,7 @@ export class GroupAdminDashboard {
       });
   }
 
+  // The same rule for channel requests the admin made themselves.
   isOwnRequest(request: RoomRequest) {
     return request.requestedBy === this.currentUserId();
   }
@@ -271,6 +366,7 @@ export class GroupAdminDashboard {
   protected readonly editRoomName = signal('');
   protected readonly editRoomDescription = signal('');
 
+  // Opens the inline form to rename a channel or change its description.
   startEditRoom(room: Room) {
     this.errorMessage.set('');
     this.editingRoomId.set(room.id);
@@ -278,10 +374,12 @@ export class GroupAdminDashboard {
     this.editRoomDescription.set(room.description);
   }
 
+  // Closes the channel form without saving.
   cancelEditRoom() {
     this.editingRoomId.set(null);
   }
 
+  // Saves a channel's new name and description. Names stay unique within the group.
   saveRoom(room: Room) {
     const group = this.group();
     if (!group) return;
@@ -293,7 +391,10 @@ export class GroupAdminDashboard {
 
     this.errorMessage.set('');
     this.http
-      .put<Room>(`${API_URL}/groups/${group.id}/rooms/${room.id}`, { name, description: this.editRoomDescription().trim() })
+      .put<Room>(`${API_URL}/groups/${group.id}/rooms/${room.id}`, {
+        name,
+        description: this.editRoomDescription().trim(),
+      })
       .subscribe({
         next: () => {
           this.editingRoomId.set(null);
@@ -303,6 +404,7 @@ export class GroupAdminDashboard {
       });
   }
 
+  // Deletes a channel and its messages, after confirming.
   deleteRoom(room: Room) {
     const group = this.group();
     if (!group) return;
@@ -310,10 +412,11 @@ export class GroupAdminDashboard {
 
     this.http.delete(`${API_URL}/groups/${group.id}/rooms/${room.id}`).subscribe({
       next: () => this.loadRooms(group.id),
-      error: () => this.errorMessage.set('Unable to delete that channel.'),
+      error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to delete that channel.'),
     });
   }
 
+  // Whether a member row is the logged-in admin, shown as "(you)".
   isSelf(member: GroupMember) {
     return member.userId === this.currentUserId();
   }
@@ -324,13 +427,17 @@ export class GroupAdminDashboard {
     return member.role === 'admin' && admins.length === 1;
   }
 
+  // Promotes a member or demotes an admin. Demoting yourself asks first and then leaves this page.
   toggleRole(member: GroupMember) {
     const group = this.group();
     if (!group || this.isLastAdmin(member)) return;
 
     const newRole = member.role === 'admin' ? 'member' : 'admin';
     const demotingSelf = this.isSelf(member) && newRole === 'member';
-    if (demotingSelf && !confirm('Remove your own admin role? You will no longer be able to manage this group.')) {
+    if (
+      demotingSelf &&
+      !confirm('Remove your own admin role? You will no longer be able to manage this group.')
+    ) {
       return;
     }
 
@@ -347,7 +454,8 @@ export class GroupAdminDashboard {
             this.group.set(updated);
           }
         },
-        error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to update that member.'),
+        error: (err) =>
+          this.errorMessage.set(err.error?.message ?? 'Unable to update that member.'),
       });
   }
 }

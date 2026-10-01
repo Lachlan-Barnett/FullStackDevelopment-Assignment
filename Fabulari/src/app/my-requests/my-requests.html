@@ -17,7 +17,9 @@
           <span class="title">{{ row.title }}</span>
         </div>
         <span class="status status-pending">Waiting for review</span>
-        <time class="date" [attr.datetime]="row.createdAt">{{ row.createdAt | date: 'd MMM y' }}</time>
+        <time class="date" [attr.datetime]="row.createdAt">{{
+          row.createdAt | date: 'd MMM y'
+        }}</time>
       </div>
     } @empty {
       @if (loaded()) {
@@ -34,7 +36,9 @@
           <span class="reason">Reason: {{ row.rejectionReason || 'No reason given' }}</span>
         </div>
         <span class="status status-rejected">Rejected</span>
-        <time class="date" [attr.datetime]="row.createdAt">{{ row.createdAt | date: 'd MMM y' }}</time>
+        <time class="date" [attr.datetime]="row.createdAt">{{
+          row.createdAt | date: 'd MMM y'
+        }}</time>
       </div>
     } @empty {
       @if (loaded()) {
@@ -42,6 +46,8 @@
       }
     }
 
-    <p class="hint">Approved requests don't appear here &mdash; you'll just see the new group, room or membership.</p>
+    <p class="hint">
+      Approved requests don't appear here &mdash; you'll just see the new group, room or membership.
+    </p>
   </div>
 </div>

@@ -8,6 +8,7 @@ const { UPLOADS_DIR } = require('./uploads');
 
 const DEMO_PASSWORD = '123';
 
+// Drops the database, then adds the three demo accounts, the "help" group and its "start" room.
 async function seed(db) {
   await db.dropDatabase();
   await createIndexes(db);
@@ -18,10 +19,16 @@ async function seed(db) {
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const users = [
-    { id: 1, email: 'admin@test.com', username: 'admin', birthdate: '2000-01-01', role: 'superadmin' },
+    {
+      id: 1,
+      email: 'admin@test.com',
+      username: 'admin',
+      birthdate: '2000-01-01',
+      role: 'superadmin',
+    },
     { id: 2, email: 'user1@com.au', username: 'user1', birthdate: '2000-01-01', role: 'user' },
     { id: 3, email: 'user2@com.au', username: 'user2', birthdate: '2000-01-01', role: 'user' },
-  ].map((u) => ({ ...u, passwordHash, profilePhoto: null }));
+  ].map((u) => ({ ...u, passwordHash, profilePhoto: null, darkMode: false }));
 
   const groups = [
     {
@@ -37,7 +44,9 @@ async function seed(db) {
     },
   ];
 
-  const rooms = [{ id: 1, groupId: 1, name: 'start', description: 'start', createdAt: new Date().toISOString() }];
+  const rooms = [
+    { id: 1, groupId: 1, name: 'start', description: 'start', createdAt: new Date().toISOString() },
+  ];
 
   await db.collection('users').insertMany(users);
   await db.collection('groups').insertMany(groups);

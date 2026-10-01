@@ -1,4 +1,4 @@
-// Group admin: Group Admin Dashboard (A2 to A13)
+// Group admin: Group Admin Dashboard (A2 to A15)
 
 // A dashboard panel, found by its title.
 const panel = (title: string) => cy.contains('.panel-title', title).parents('.panel').first();
@@ -12,9 +12,13 @@ const bornYearsAgo = (years: number) => {
 
 // user2 asks for a room and returns the request id.
 const requestRoom = (name: string) =>
-  cy.apiLogin('user2@com.au').then(({ token }) =>
-    cy.api('POST', '/groups/1/room-requests', token, { name }).then((res) => res.body.id as number),
-  );
+  cy
+    .apiLogin('user2@com.au')
+    .then(({ token }) =>
+      cy
+        .api('POST', '/groups/1/room-requests', token, { name })
+        .then((res) => res.body.id as number),
+    );
 
 describe('Group admin: Group Admin Dashboard', () => {
   it('A2: members cannot open the admin page', () => {
@@ -23,9 +27,14 @@ describe('Group admin: Group Admin Dashboard', () => {
   });
 
   it('A3: approves a join request', () => {
-    cy.apiSignup('newbie@test.com', 'newbie').then(({ token }) => cy.api('POST', '/groups/1/join-requests', token, {}));
+    cy.apiSignup('newbie@test.com', 'newbie').then(({ token }) =>
+      cy.api('POST', '/groups/1/join-requests', token, {}),
+    );
     cy.loginAs('user1@com.au', '/admin/group/1');
-    panel('Join Requests').contains('.request-card', 'newbie').contains('button', 'Approve').click();
+    panel('Join Requests')
+      .contains('.request-card', 'newbie')
+      .contains('button', 'Approve')
+      .click();
     panel('Join Requests').should('contain', 'No pending join requests.');
     panel('Members').should('contain', 'newbie');
 
@@ -36,12 +45,16 @@ describe('Group admin: Group Admin Dashboard', () => {
   });
 
   it('A4: rejects a join request with a reason', () => {
-    cy.apiSignup('newbie@test.com', 'newbie').then(({ token }) => cy.api('POST', '/groups/1/join-requests', token, {}));
+    cy.apiSignup('newbie@test.com', 'newbie').then(({ token }) =>
+      cy.api('POST', '/groups/1/join-requests', token, {}),
+    );
     cy.loginAs('user1@com.au', '/admin/group/1');
-    panel('Join Requests').contains('.request-card', 'newbie').within(() => {
-      cy.get('input').type('group is full');
-      cy.contains('button', 'Reject').click();
-    });
+    panel('Join Requests')
+      .contains('.request-card', 'newbie')
+      .within(() => {
+        cy.get('input').type('group is full');
+        cy.contains('button', 'Reject').click();
+      });
     panel('Join Requests').should('contain', 'No pending join requests.');
 
     cy.loginAs('newbie@test.com', '/groups', 'p');
@@ -51,7 +64,10 @@ describe('Group admin: Group Admin Dashboard', () => {
   it('A5: approves a room request', () => {
     requestRoom('memes');
     cy.loginAs('user1@com.au', '/admin/group/1');
-    panel('Channel Requests').contains('.request-card', 'memes').contains('button', 'Approve').click();
+    panel('Channel Requests')
+      .contains('.request-card', 'memes')
+      .contains('button', 'Approve')
+      .click();
     panel('Channels').should('contain', 'memes');
     cy.visit('/chat');
     cy.contains('.rooms-col .list-btn', 'memes');
@@ -60,17 +76,25 @@ describe('Group admin: Group Admin Dashboard', () => {
   it('A6: rejecting a room request needs a reason', () => {
     requestRoom('memes');
     cy.loginAs('user1@com.au', '/admin/group/1');
-    panel('Channel Requests').contains('.request-card', 'memes').contains('button', 'Reject').click();
+    panel('Channel Requests')
+      .contains('.request-card', 'memes')
+      .contains('button', 'Reject')
+      .click();
     cy.contains('.error-text', 'Enter a reason before rejecting "memes".');
 
-    panel('Channel Requests').contains('.request-card', 'memes').within(() => {
-      cy.get('input').type('not needed');
-      cy.contains('button', 'Reject').click();
-    });
+    panel('Channel Requests')
+      .contains('.request-card', 'memes')
+      .within(() => {
+        cy.get('input').type('not needed');
+        cy.contains('button', 'Reject').click();
+      });
     panel('Channel Requests').should('contain', 'No pending channel requests.');
 
     cy.loginAs('user2@com.au', '/requests');
-    cy.contains('h2', 'Rejected').nextUntil('h2').should('contain', 'memes').and('contain', 'Reason: not needed');
+    cy.contains('h2', 'Rejected')
+      .nextUntil('h2')
+      .should('contain', 'memes')
+      .and('contain', 'Reason: not needed');
   });
 
   it('A7: edits the group details', () => {
@@ -119,7 +143,10 @@ describe('Group admin: Group Admin Dashboard', () => {
       cy.api('POST', '/reports', token, { groupId: 1, username: 'user2', reason: 'spamming' }),
     );
     cy.loginAs('user1@com.au', '/admin/group/1');
-    panel('Reports').contains('.request-card', 'user2').contains('button', 'Ban from group').click();
+    panel('Reports')
+      .contains('.request-card', 'user2')
+      .contains('button', 'Ban from group')
+      .click();
     panel('Reports').should('contain', 'No reports to review.');
     panel('Members').should('not.contain', 'user2');
     panel('Banned Members').should('contain', 'user2').and('contain', 'spamming');
@@ -145,15 +172,40 @@ describe('Group admin: Group Admin Dashboard', () => {
 
   it('A12: deletes a room', () => {
     requestRoom('old-room').then((id) =>
-      cy.apiLogin('user1@com.au').then(({ token }) =>
-        cy.api('PUT', `/groups/1/room-requests/${id}`, token, { approve: true }),
-      ),
+      cy
+        .apiLogin('user1@com.au')
+        .then(({ token }) =>
+          cy.api('PUT', `/groups/1/room-requests/${id}`, token, { approve: true }),
+        ),
     );
     cy.loginAs('user1@com.au', '/admin/group/1');
     panel('Channels').find('button[aria-label="Delete old-room"]').click();
     panel('Channels').should('not.contain', 'old-room');
     cy.visit('/chat');
     cy.get('.rooms-col').should('not.contain', 'old-room');
+  });
+
+  it('A14: renames the group', () => {
+    cy.loginAs('user1@com.au', '/admin/group/1');
+    panel('Group Details').within(() => {
+      cy.get('input[name=editName]').clear().type('Help Desk');
+      cy.contains('button', 'Save Changes').click();
+      cy.contains('[role=status]', 'Saved.');
+    });
+    cy.get('.page-title-bar').should('contain', 'Help Desk');
+    cy.visit('/chat');
+    cy.waitForRoom();
+    cy.get('.group-name-bar').should('have.text', 'Help Desk');
+  });
+
+  it('A15: new join requests appear without reloading', () => {
+    cy.loginAs('user1@com.au', '/admin/group/1');
+    panel('Join Requests').should('contain', 'No pending join requests.');
+    cy.apiSignup('newbie@test.com', 'newbie').then(({ token }) =>
+      cy.api('POST', '/groups/1/join-requests', token, {}),
+    );
+    cy.contains('.toast-card', 'newbie asked to join "help"');
+    panel('Join Requests').contains('.request-card', 'newbie');
   });
 
   it('A13: asks the super admin to delete the group', () => {

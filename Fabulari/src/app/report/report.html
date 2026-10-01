@@ -13,11 +13,25 @@
       </div>
       <div class="form-field">
         <label for="username" class="form-label">Username</label>
-        <input type="text" class="form-control" id="username" name="username" [(ngModel)]="username">
+        <input
+          type="text"
+          class="form-control"
+          id="username"
+          name="username"
+          [maxlength]="limits.username"
+          [(ngModel)]="username"
+        />
       </div>
       <div class="form-field">
         <label for="reason" class="form-label">Reason</label>
-        <textarea class="form-control" id="reason" name="reason" rows="4" [(ngModel)]="reason"></textarea>
+        <textarea
+          class="form-control"
+          id="reason"
+          name="reason"
+          rows="4"
+          [maxlength]="limits.reason"
+          [(ngModel)]="reason"
+        ></textarea>
       </div>
       @if (errorMessage()) {
         <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>

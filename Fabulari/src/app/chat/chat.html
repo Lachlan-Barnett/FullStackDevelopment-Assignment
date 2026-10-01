@@ -1,25 +1,44 @@
 <div class="chat-shell card chat-card">
-
   <button type="button" class="logout" (click)="logout()">Logout</button>
-  <button type="button" class="settings" routerLink="/settings" aria-label="Settings">&#9776;</button>
+  <button type="button" class="settings" routerLink="/settings" aria-label="Settings">
+    &#9776;
+  </button>
 
   <div class="panel-title group-name-bar">{{ selectedGroup()?.name ?? 'No Group Selected' }}</div>
 
   <div class="toggle-row">
-    <button type="button" class="groups-toggle" (click)="toggleGroups()" [attr.aria-label]="showGroups() ? 'Hide groups and rooms' : 'Show groups and rooms'" [attr.aria-expanded]="showGroups()">
+    <button
+      type="button"
+      class="groups-toggle"
+      (click)="toggleGroups()"
+      [attr.aria-label]="showGroups() ? 'Hide groups and rooms' : 'Show groups and rooms'"
+      [attr.aria-expanded]="showGroups()"
+    >
       {{ showGroups() ? '&lt;' : '&gt;' }}
     </button>
-    <button type="button" class="description-toggle" (click)="toggleDescription()" [attr.aria-label]="showDescription() ? 'Hide group info' : 'Show group info'" [attr.aria-expanded]="showDescription()">
+    <button
+      type="button"
+      class="description-toggle"
+      (click)="toggleDescription()"
+      [attr.aria-label]="showDescription() ? 'Hide group info' : 'Show group info'"
+      [attr.aria-expanded]="showDescription()"
+    >
       {{ showDescription() ? '&gt;' : '&lt;' }}
     </button>
   </div>
 
-   <div class="card-body">
+  <div class="card-body">
     @if (showGroups()) {
       <aside class="groups-col">
         <div class="panel-title">Groups</div>
         @for (group of myGroups(); track group.id) {
-          <button type="button" class="list-btn" [class.selected]="selectedGroupId() === group.id" [attr.aria-pressed]="selectedGroupId() === group.id" (click)="selectGroup(group.id)">
+          <button
+            type="button"
+            class="list-btn"
+            [class.selected]="selectedGroupId() === group.id"
+            [attr.aria-pressed]="selectedGroupId() === group.id"
+            (click)="selectGroup(group.id)"
+          >
             {{ group.name }}
           </button>
         } @empty {
@@ -31,7 +50,13 @@
       <aside class="rooms-col">
         <div class="panel-title">Rooms</div>
         @for (room of rooms(); track room.id) {
-          <button type="button" class="list-btn" [class.selected]="selectedRoomId() === room.id" [attr.aria-pressed]="selectedRoomId() === room.id" (click)="selectRoom(room.id)">
+          <button
+            type="button"
+            class="list-btn"
+            [class.selected]="selectedRoomId() === room.id"
+            [attr.aria-pressed]="selectedRoomId() === room.id"
+            (click)="selectRoom(room.id)"
+          >
             {{ room.name }}
           </button>
         } @empty {
@@ -53,34 +78,68 @@
 
     <main class="messages-col">
       @if (isGroupAdmin()) {
-        <button type="button" class="admin-link" [routerLink]="['/admin/group', selectedGroup()?.id]">Manage Group &gt;</button>
+        <button
+          type="button"
+          class="admin-link"
+          [routerLink]="['/admin/group', selectedGroup()?.id]"
+        >
+          Manage Group &gt;
+        </button>
       }
 
       @if (roomRequestSuccess()) {
-        <div class="alert alert-success room-request-alert" role="status">{{ roomRequestSuccess() }}</div>
+        <div class="alert alert-success room-request-alert" role="status">
+          {{ roomRequestSuccess() }}
+        </div>
       }
 
       @if (showRoomRequest() && selectedGroup(); as group) {
-        <form id="room-request-form" class="room-request-form" (ngSubmit)="submitRoomRequest()">
+        <form
+          id="room-request-form"
+          class="room-request-form"
+          (ngSubmit)="submitRoomRequest()"
+          novalidate
+          animate.enter="fade-in"
+        >
           <div class="room-request-title">Request a new room in {{ group.name }}</div>
           <div class="room-request-fields">
             <div class="room-request-field">
               <label for="roomRequestName" class="form-label">Room name</label>
-              <input id="roomRequestName" name="roomRequestName" type="text" class="form-control form-control-sm" maxlength="40" [(ngModel)]="roomRequestName">
+              <input
+                id="roomRequestName"
+                name="roomRequestName"
+                type="text"
+                class="form-control form-control-sm"
+                [maxlength]="limits.name"
+                [(ngModel)]="roomRequestName"
+              />
             </div>
             <div class="room-request-field grow">
               <label for="roomRequestDescription" class="form-label">Description (optional)</label>
-              <input id="roomRequestDescription" name="roomRequestDescription" type="text" class="form-control form-control-sm" maxlength="200" [(ngModel)]="roomRequestDescription">
+              <input
+                id="roomRequestDescription"
+                name="roomRequestDescription"
+                type="text"
+                class="form-control form-control-sm"
+                [maxlength]="limits.description"
+                [(ngModel)]="roomRequestDescription"
+              />
             </div>
             <button type="submit" class="btn btn-sm btn-dark" [disabled]="roomRequestSending()">
               {{ roomRequestSending() ? 'Sending…' : 'Send request' }}
             </button>
           </div>
-          <p class="room-request-hint">A group admin will approve or reject it. Rejections come with a reason.</p>
+          <p class="room-request-hint">
+            A group admin will approve or reject it. Rejections come with a reason.
+          </p>
           @if (roomRequestError()) {
             <div class="alert alert-danger py-1 mb-0" role="alert">{{ roomRequestError() }}</div>
           }
         </form>
+      }
+
+      @if (connectionLost()) {
+        <div class="connection-banner" role="status">Connection lost. Reconnecting&hellip;</div>
       }
 
       @if (selectedRoom(); as room) {
@@ -97,16 +156,30 @@
         </div>
       }
 
-      <div class="messages-list" #messageList role="log" aria-live="polite" aria-label="Messages" [style.background-color]="themeTint()">
+      <div
+        class="messages-list"
+        #messageList
+        role="log"
+        aria-live="polite"
+        aria-label="Messages"
+        [style.background-color]="themeTint()"
+      >
         @for (item of feed(); track item.key) {
           @if (item.kind === 'notice') {
-            <div class="notice">{{ item.text }}</div>
+            <div class="notice" animate.enter="fade-in">{{ item.text }}</div>
           } @else {
-            <div class="message" [class.mine]="isMine(item.message)">
+            <div class="message" [class.mine]="isMine(item.message)" animate.enter="message-in">
               @if (item.message.senderPhoto) {
-                <img class="avatar" [src]="serverUrl + item.message.senderPhoto" alt="" aria-hidden="true">
+                <img
+                  class="avatar"
+                  [src]="serverUrl + item.message.senderPhoto"
+                  alt=""
+                  aria-hidden="true"
+                />
               } @else {
-                <div class="avatar" aria-hidden="true">{{ item.message.senderName.charAt(0).toUpperCase() }}</div>
+                <div class="avatar" aria-hidden="true">
+                  {{ item.message.senderName.charAt(0).toUpperCase() }}
+                </div>
               }
               <div class="message-body">
                 <div class="message-meta">
@@ -114,10 +187,26 @@
                   @if (adminIds().has(item.message.senderId)) {
                     <span class="admin-badge">Admin</span>
                   }
-                  <time class="timestamp" [attr.datetime]="item.message.timestamp">{{ item.message.timestamp | date: 'd MMM, h:mm a' }}</time>
+                  <time class="timestamp" [attr.datetime]="item.message.timestamp">{{
+                    item.message.timestamp | date: 'd MMM, h:mm a'
+                  }}</time>
                 </div>
                 @if (item.message.type === 'image') {
-                  <img class="message-image" [src]="imageUrl(item.message)" [alt]="'Image sent by ' + item.message.senderName" loading="lazy">
+                  <button
+                    type="button"
+                    class="image-btn"
+                    [attr.aria-label]="
+                      'View the image sent by ' + item.message.senderName + ' full size'
+                    "
+                    (click)="openImage(item.message)"
+                  >
+                    <img
+                      class="message-image"
+                      [src]="imageUrl(item.message)"
+                      [alt]="'Image sent by ' + item.message.senderName"
+                      loading="lazy"
+                    />
+                  </button>
                 } @else {
                   <div class="message-text">{{ item.message.content }}</div>
                 }
@@ -137,12 +226,29 @@
         }
       </div>
 
+      <div class="typing-indicator" aria-live="polite">
+        @if (typingText()) {
+          <span class="typing-dots" aria-hidden="true"
+            ><span></span><span></span><span></span
+          ></span>
+          {{ typingText() }}
+        }
+      </div>
+
       @if (chatError()) {
         <div class="chat-error" role="alert">{{ chatError() }}</div>
       }
 
       <form class="message-input-row" (ngSubmit)="sendMessage()">
-        <input #imagePicker type="file" accept="image/png" class="visually-hidden" tabindex="-1" aria-hidden="true" (change)="sendImage(imagePicker)">
+        <input
+          #imagePicker
+          type="file"
+          accept="image/png"
+          class="visually-hidden"
+          tabindex="-1"
+          aria-hidden="true"
+          (change)="sendImage(imagePicker)"
+        />
         <button
           type="button"
           class="btn btn-outline-dark attach-btn"
@@ -150,34 +256,76 @@
           title="Send a PNG image (max 2MB)"
           [disabled]="!selectedRoom() || uploading()"
           (click)="imagePicker.click()"
-        >{{ uploading() ? '…' : '+' }}</button>
+        >
+          {{ uploading() ? '…' : '+' }}
+        </button>
         <input
           type="text"
           class="form-control user-message"
           name="draft"
           placeholder="Type a message"
           aria-label="Message"
-          maxlength="2000"
+          [maxlength]="limits.message"
           autocomplete="off"
           [(ngModel)]="draft"
+          (input)="onTyping()"
           [disabled]="!selectedRoom()"
+        />
+        <button
+          type="submit"
+          class="btn btn-outline-dark"
+          aria-label="Send message"
+          [disabled]="!selectedRoom() || !draft().trim()"
         >
-        <button type="submit" class="btn btn-outline-dark" aria-label="Send message" [disabled]="!selectedRoom() || !draft().trim()">&gt;</button>
+          &gt;
+        </button>
       </form>
     </main>
 
     @if (showDescription()) {
       <aside class="info-col">
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'info'" [attr.aria-pressed]="infoTab() === 'info'" (click)="setInfoTab('info')">Group Info</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'age'" [attr.aria-pressed]="infoTab() === 'age'" (click)="setInfoTab('age')">Age Limit</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'colour'" [attr.aria-pressed]="infoTab() === 'colour'" (click)="setInfoTab('colour')">Colour Theme</button>
-        <button type="button" class="list-btn" [class.selected]="infoTab() === 'members'" [attr.aria-pressed]="infoTab() === 'members'" (click)="setInfoTab('members')">Members</button>
+        <button
+          type="button"
+          class="list-btn"
+          [class.selected]="infoTab() === 'info'"
+          [attr.aria-pressed]="infoTab() === 'info'"
+          (click)="setInfoTab('info')"
+        >
+          Group Info
+        </button>
+        <button
+          type="button"
+          class="list-btn"
+          [class.selected]="infoTab() === 'age'"
+          [attr.aria-pressed]="infoTab() === 'age'"
+          (click)="setInfoTab('age')"
+        >
+          Age Limit
+        </button>
+        <button
+          type="button"
+          class="list-btn"
+          [class.selected]="infoTab() === 'colour'"
+          [attr.aria-pressed]="infoTab() === 'colour'"
+          (click)="setInfoTab('colour')"
+        >
+          Colour Theme
+        </button>
+        <button
+          type="button"
+          class="list-btn"
+          [class.selected]="infoTab() === 'members'"
+          [attr.aria-pressed]="infoTab() === 'members'"
+          (click)="setInfoTab('members')"
+        >
+          Members
+        </button>
 
         @if (infoTab() === 'members') {
           <ul class="info-box member-list" aria-label="Group members">
             @for (member of members(); track member.userId) {
               <li class="member-item">
-                <span>{{ member.username ?? ('User #' + member.userId) }}</span>
+                <span>{{ member.username ?? 'User #' + member.userId }}</span>
                 @if (member.role === 'admin') {
                   <span class="admin-badge">Admin</span>
                 }
@@ -197,3 +345,29 @@
     }
   </div>
 </div>
+
+@if (viewedImage(); as image) {
+  <div
+    class="image-viewer"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Image viewer"
+    (click)="closeImage()"
+    animate.enter="fade-in"
+  >
+    <figure class="image-viewer-figure" (click)="$event.stopPropagation()">
+      <img [src]="imageUrl(image)" [alt]="'Image sent by ' + image.senderName" />
+      <figcaption>
+        Sent by {{ image.senderName }}, {{ image.timestamp | date: 'd MMM y, h:mm a' }}
+      </figcaption>
+    </figure>
+    <button
+      #viewerClose
+      type="button"
+      class="btn btn-light image-viewer-close"
+      (click)="closeImage()"
+    >
+      Close
+    </button>
+  </div>
+}

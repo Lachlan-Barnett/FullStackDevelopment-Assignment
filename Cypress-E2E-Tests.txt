@@ -27,14 +27,19 @@ Notes:
     cypress.config.ts), so tests don't depend on each other.
   - Confirmation pop-ups (leave group, ban, delete room) need: cy.on('window:confirm', () => true)
   - Cypress runs one browser at a time, so tests involving two users log in as one user,
-    act, log out, then log in as the other user.
+    act, log out, then log in as the other user. Set-up steps by another user (approving a
+    request, filing a report) go through the API with cy.request, and the "typingAs" task
+    in cypress.config.ts acts as a second user over its own socket (for the typing indicator).
+  - Live updates (pop-ups, new rooms, removed groups) arrive over the socket, so those tests
+    check the page changes without reloading it.
   - Images can be chosen with cy.selectFile() on the hidden file input.
 
 
 USEFUL SELECTORS
 ----------------
 
-Login / Signup:     #email  #password  #username  #dob  button[type=submit]
+Login:              #login (email or username)  #password  button[type=submit]
+Signup:             #email  #username  #dob  #password  button[type=submit]
                     #show-password (Show password checkbox)
 Chat page:          .room-title  .present-users  .messages-list  .message  .message-image
                     input[name=draft]  button[aria-label="Send message"]
@@ -42,10 +47,12 @@ Chat page:          .room-title  .present-users  .messages-list  .message  .mess
                     .admin-link (Manage Group)  .settings (menu button)  .logout
                     .description-toggle (group info panel)  .chat-error
                     form.message-input-row input[type=file] (image picker)
-Groups page:        .group-row  #newGroupName  #newGroupDescription  #newGroupAgeLimit  #newGroupColour
+                    .typing-indicator  .image-btn  .image-viewer  .image-viewer-close
+Every page:         .toast-card (pop-up notifications)
+Groups page:        .group-row  #groupSearch  #newGroupName  #newGroupDescription  #newGroupAgeLimit  #newGroupColour
                     form.request-form  .error-text
 Settings:           #dark-mode  .photo-actions input[type=file]  img.avatar-large  .avatar-initial
-Group admin page:   .panel-title  .request-card  .member-row  .room-row  .error-text
+Group admin page:   .panel-title  .request-card  .member-row  .room-row  .error-text  input[name=editName]
 
 
 USER TESTS
@@ -60,13 +67,13 @@ U2. Sign up with an email that is already registered
     Expect:   An error says the email is already registered. The page stays on /signup.
 
 U3. Log in
-    Steps:    Go to /. Log in as user2@com.au with password 123.
+    Steps:    Go to /. Log in as user2@com.au with password 123 (the field takes an email or a username).
     Expect:   The chat page opens with the "help" group and the "# start" room, and user2 is listed
               under "In this room".
 
 U4. Log in with the wrong password
     Steps:    Log in as user2@com.au with a wrong password.
-    Expect:   "Invalid email or password" is shown and the page stays on the login page.
+    Expect:   "Incorrect email, username or password." is shown and the page stays on the login page.
 
 U5. Pages need a login
     Steps:    Without logging in, visit /chat, /groups and /settings.
@@ -143,9 +150,10 @@ U22. Report a member
               reason, and submit.
     Expect:   A message says the report was sent to the group admins.
 
-U23. Dark mode
-    Steps:    In Settings tick the dark mode switch, then reload the page.
-    Expect:   The page is dark, and it is still dark after reloading.
+U23. Dark mode is saved on the account
+    Steps:    In Settings tick the dark mode switch, then reload the page. Log out, then log in again.
+    Expect:   The page is dark and still dark after reloading. The login page is light, and logging
+              in again brings dark mode back (it is saved on the account, not just the browser).
 
 U24. Change username
     Steps:    In Settings, Change Username, enter a new name and submit.
@@ -164,6 +172,34 @@ U26. Profile photo
     Steps:    In Settings choose a PNG with "Add photo". Go to chat and send a message.
               Go back and click Remove.
     Expect:   The photo shows in Settings and on the message. After Remove, the initial shows again.
+
+U27. Log in with the username
+    Steps:    Go to /. Log in as "USER2" (any capitals) with password 123.
+    Expect:   The chat page opens as user2.
+
+U28. Search the groups
+    Steps:    Have a second group "Chess" (description "board games") created. Open Groups and type
+              "board" in the search box, then "zzz".
+    Expect:   Only Chess is listed with "1 of 2 groups", then "No groups match "zzz"."
+
+U29. View an image full size
+    Steps:    Send a PNG, click the image, then press Escape.
+    Expect:   The image opens in a viewer that says who sent it, with focus on Close. Escape closes it.
+
+U30. See who is typing
+    Steps:    While user2 is in the room, user1 starts typing (simulated with the typingAs task),
+              then closes their connection.
+    Expect:   "user1 is typing…" appears under the messages, then disappears.
+
+U31. Told straight away when a room request is approved
+    Steps:    Request the room "memes". user1 approves it (through the API). Do not reload.
+    Expect:   A pop-up says the room was approved, and "memes" appears in the room list.
+
+U32. Leave the chat straight away when banned
+    Steps:    A member reports user2 and user1 bans them (through the API) while user2 is on the
+              chat page. Do not reload.
+    Expect:   A pop-up says user2 was banned from "help", "help" leaves the group list, and the
+              page says "Join a group to start chatting."
 
 
 GROUP ADMIN TESTS
@@ -231,3 +267,11 @@ A12. Delete a room
 A13. Request deletion of the group
     Steps:    As user1, enter a reason in Delete Group and click "Request deletion", then confirm.
     Expect:   The panel says the deletion is waiting for the super admin.
+
+A14. Rename the group
+    Steps:    As user1, change the name in Group Details to "Help Desk" and save. Open the chat page.
+    Expect:   "Saved." is shown, the dashboard title and the chat page both show "Help Desk".
+
+A15. New join requests appear without reloading
+    Steps:    As user1, open Manage Group. A new user asks to join "help" (through the API).
+    Expect:   A pop-up says they asked to join, and they appear under Join Requests without a reload.

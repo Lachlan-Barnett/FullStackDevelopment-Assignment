@@ -7,17 +7,37 @@
     <div class="card-body">
       <div class="panel-title">Profile</div>
       @if (photoUrl(); as url) {
-        <img class="avatar-large" [src]="url" alt="Your profile photo">
+        <img class="avatar-large" [src]="url" alt="Your profile photo" />
       } @else {
         <div class="avatar-large avatar-initial" aria-label="No profile photo">{{ initial() }}</div>
       }
       <div class="photo-actions">
-        <input #photoPicker type="file" accept="image/png" class="visually-hidden" tabindex="-1" aria-hidden="true" (change)="uploadPhoto(photoPicker)">
-        <button type="button" class="btn btn-sm btn-outline-dark" [disabled]="photoBusy()" (click)="photoPicker.click()">
+        <input
+          #photoPicker
+          type="file"
+          accept="image/png"
+          class="visually-hidden"
+          tabindex="-1"
+          aria-hidden="true"
+          (change)="uploadPhoto(photoPicker)"
+        />
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-dark"
+          [disabled]="photoBusy()"
+          (click)="photoPicker.click()"
+        >
           {{ photoUrl() ? 'Change photo' : 'Add photo' }}
         </button>
         @if (photoUrl()) {
-          <button type="button" class="btn btn-sm btn-outline-danger" [disabled]="photoBusy()" (click)="removePhoto()">Remove</button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-danger"
+            [disabled]="photoBusy()"
+            (click)="removePhoto()"
+          >
+            Remove
+          </button>
         }
       </div>
       <p class="photo-hint">PNG, up to 2MB</p>
@@ -35,8 +55,17 @@
       <div class="panel-title">Settings</div>
       <div class="settings-row">
         <label for="dark-mode">Dark mode</label>
-        <input id="dark-mode" type="checkbox" role="switch" [checked]="darkMode()" (change)="toggleTheme()">
+        <input
+          id="dark-mode"
+          type="checkbox"
+          role="switch"
+          [checked]="darkMode()"
+          (change)="toggleTheme()"
+        />
       </div>
+      @if (themeError()) {
+        <div class="alert alert-danger py-1" role="alert">{{ themeError() }}</div>
+      }
       <button type="button" class="settings-row" routerLink="/change-password">
         <span>Change Password</span>
         <span>&gt;</span>
@@ -55,10 +84,12 @@
           <span>&gt;</span>
         </button>
       }
-      <button type="button" class="settings-row" routerLink="/report">
-        <span>Submit Report</span>
-        <span>&gt;</span>
-      </button>
+      @if (currentUser()?.role !== 'superadmin') {
+        <button type="button" class="settings-row" routerLink="/report">
+          <span>Submit Report</span>
+          <span>&gt;</span>
+        </button>
+      }
     </div>
   </div>
 </div>

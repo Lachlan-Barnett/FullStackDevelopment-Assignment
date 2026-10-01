@@ -8,3 +8,8 @@ beforeEach(() => {
 
 // Confirmation pop-ups (leave group, ban, delete room...) are accepted unless a test says otherwise.
 Cypress.on('window:confirm', () => true);
+
+// Sockets a test opened to act as a second user (see the typingAs task) never outlive the test.
+afterEach(() => {
+  cy.task('closeSockets');
+});

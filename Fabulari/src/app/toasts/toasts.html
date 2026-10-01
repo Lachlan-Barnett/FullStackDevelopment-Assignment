@@ -1,0 +1,15 @@
+<div class="toast-stack" role="status" aria-live="polite">
+  @for (toast of notifications.toasts(); track toast.id) {
+    <div class="toast-card" animate.enter="slide-in" animate.leave="fade-out">
+      <span class="toast-text">{{ toast.message }}</span>
+      <button
+        type="button"
+        class="toast-close"
+        aria-label="Dismiss notification"
+        (click)="notifications.dismiss(toast.id)"
+      >
+        &times;
+      </button>
+    </div>
+  }
+</div>

@@ -1,7 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRouteSnapshot, convertToParamMap, provideRouter, RouterStateSnapshot, UrlTree } from '@angular/router';
+import {
+  ActivatedRouteSnapshot,
+  convertToParamMap,
+  provideRouter,
+  RouterStateSnapshot,
+  UrlTree,
+} from '@angular/router';
 import { firstValueFrom, isObservable, Observable, of } from 'rxjs';
 import { signal } from '@angular/core';
 import { groupAdminGuard } from './group-admin.guard';
@@ -17,7 +23,10 @@ describe('groupAdminGuard', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { currentUser: signal(userId == null ? null : { id: userId }) } },
+        {
+          provide: AuthService,
+          useValue: { currentUser: signal(userId == null ? null : { id: userId }) },
+        },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -25,11 +34,20 @@ describe('groupAdminGuard', () => {
 
   function runGuard(groupId: string) {
     const route = { paramMap: convertToParamMap({ groupId }) } as ActivatedRouteSnapshot;
-    const result = TestBed.runInInjectionContext(() => groupAdminGuard(route, {} as RouterStateSnapshot));
-    return isObservable(result) ? firstValueFrom(result as Observable<boolean | UrlTree>) : firstValueFrom(of(result));
+    const result = TestBed.runInInjectionContext(() =>
+      groupAdminGuard(route, {} as RouterStateSnapshot),
+    );
+    return isObservable(result)
+      ? firstValueFrom(result as Observable<boolean | UrlTree>)
+      : firstValueFrom(of(result));
   }
 
-  const group = { members: [{ userId: 2, role: 'admin' }, { userId: 3, role: 'member' }] };
+  const group = {
+    members: [
+      { userId: 2, role: 'admin' },
+      { userId: 3, role: 'member' },
+    ],
+  };
 
   it('allows an admin of the group', async () => {
     setup(2);

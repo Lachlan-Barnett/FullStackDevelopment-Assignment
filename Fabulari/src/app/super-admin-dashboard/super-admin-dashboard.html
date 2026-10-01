@@ -15,25 +15,41 @@
     <div class="card-body">
       <div class="panel-title">Group Requests</div>
       @for (request of groupRequests(); track request.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
             <span class="group-name">{{ request.name }}</span>
-            <span class="group-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
+            <span class="group-meta"
+              >requested by {{ request.requesterName ?? 'User #' + request.requestedBy }}</span
+            >
           </div>
           <div class="group-meta">
-            {{ request.description || 'No description' }} &middot; Age {{ request.ageLimit }}+ &middot; {{ request.colourTheme }}
+            {{ request.description || 'No description' }} &middot; Age {{ request.ageLimit }}+
+            &middot; {{ request.colourTheme }}
           </div>
           <div class="request-actions">
             <input
               type="text"
               class="form-control form-control-sm"
               placeholder="Rejection reason (optional)"
+              maxlength="500"
               [attr.aria-label]="'Rejection reason for ' + request.name"
               [(ngModel)]="rejectReasons[request.id]"
               [name]="'reason-' + request.id"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-success"
+              (click)="actionGroupRequest(request, true)"
             >
-            <button type="button" class="btn btn-sm btn-outline-success" (click)="actionGroupRequest(request, true)">Approve</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionGroupRequest(request, false)">Reject</button>
+              Approve
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              (click)="actionGroupRequest(request, false)"
+            >
+              Reject
+            </button>
           </div>
         </div>
       } @empty {
@@ -46,10 +62,12 @@
     <div class="card-body">
       <div class="panel-title">Group Deletion Requests</div>
       @for (request of deleteRequests(); track request.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
             <span class="group-name">{{ request.groupName }}</span>
-            <span class="group-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
+            <span class="group-meta"
+              >requested by {{ request.requesterName ?? 'User #' + request.requestedBy }}</span
+            >
           </div>
           <div class="group-meta">Reason: {{ request.reason || 'None given' }}</div>
           <div class="request-actions">
@@ -57,11 +75,24 @@
               type="text"
               class="form-control form-control-sm"
               placeholder="Rejection reason (optional)"
+              maxlength="500"
               [attr.aria-label]="'Rejection reason for deleting ' + request.groupName"
               [(ngModel)]="deleteRejectReasons[request.id]"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              (click)="actionDeleteRequest(request, true)"
             >
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionDeleteRequest(request, true)">Delete group</button>
-            <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionDeleteRequest(request, false)">Reject</button>
+              Delete group
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-dark"
+              (click)="actionDeleteRequest(request, false)"
+            >
+              Reject
+            </button>
           </div>
         </div>
       } @empty {
@@ -74,10 +105,13 @@
     <div class="card-body">
       <div class="panel-title">User Removal Requests</div>
       @for (request of removalRequests(); track request.id) {
-        <div class="request-card">
+        <div class="request-card" animate.enter="fade-in">
           <div class="request-header">
             <span class="group-name">{{ request.username }} &mdash; {{ request.email }}</span>
-            <span class="group-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }} in {{ request.groupName }}</span>
+            <span class="group-meta"
+              >requested by {{ request.requesterName ?? 'User #' + request.requestedBy }} in
+              {{ request.groupName }}</span
+            >
           </div>
           <div class="group-meta">Report: {{ request.reason }}</div>
           <div class="request-actions">
@@ -85,11 +119,24 @@
               type="text"
               class="form-control form-control-sm"
               placeholder="Rejection reason (optional)"
+              maxlength="500"
               [attr.aria-label]="'Rejection reason for removing ' + request.username"
               [(ngModel)]="removalRejectReasons[request.id]"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              (click)="actionRemovalRequest(request, true)"
             >
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRemovalRequest(request, true)">Remove user</button>
-            <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionRemovalRequest(request, false)">Reject</button>
+              Remove user
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-dark"
+              (click)="actionRemovalRequest(request, false)"
+            >
+              Reject
+            </button>
           </div>
         </div>
       } @empty {
@@ -101,50 +148,94 @@
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">All Groups</div>
-      @for (group of groups(); track group.id) {
-        <div class="group-row">
-          <span class="group-name">{{ group.name }}</span>
-          <span class="group-meta">{{ group.members.length }} member(s), {{ adminCountFor(group) }} admin(s)</span>
-        </div>
-      } @empty {
-        <p class="empty-note">No groups yet.</p>
-      }
+      <div class="search-row">
+        <label for="groupSearch" class="visually-hidden">Search groups</label>
+        <input
+          id="groupSearch"
+          type="search"
+          class="form-control form-control-sm"
+          placeholder="Search groups"
+          autocomplete="off"
+          [ngModel]="groupSearch()"
+          (ngModelChange)="groupSearch.set($event)"
+        />
+        <span class="search-count">{{ filteredGroups().length }} of {{ groups().length }}</span>
+      </div>
+      <div class="scroll-list">
+        @for (group of filteredGroups(); track group.id) {
+          <div class="group-row">
+            <span class="group-name">{{ group.name }}</span>
+            <span class="group-meta"
+              >{{ group.members.length }} member(s), {{ adminCountFor(group) }} admin(s)</span
+            >
+          </div>
+        } @empty {
+          <p class="empty-note">
+            {{ groupSearch().trim() ? 'No groups match.' : 'No groups yet.' }}
+          </p>
+        }
+      </div>
     </div>
   </div>
 
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">All Users</div>
-      @for (user of users(); track user.id) {
-        <div class="group-row">
-          <span class="group-name">{{ user.username }} &mdash; {{ user.email }}</span>
-          <span class="group-meta">{{ user.role }}</span>
-        </div>
-      }
+      <div class="search-row">
+        <label for="userSearch" class="visually-hidden">Search users</label>
+        <input
+          id="userSearch"
+          type="search"
+          class="form-control form-control-sm"
+          placeholder="Search by username or email"
+          autocomplete="off"
+          [ngModel]="userSearch()"
+          (ngModelChange)="userSearch.set($event)"
+        />
+        <span class="search-count">{{ filteredUsers().length }} of {{ users().length }}</span>
+      </div>
+      <div class="scroll-list">
+        @for (user of filteredUsers(); track user.id) {
+          <div class="group-row">
+            <span class="group-name">{{ user.username }} &mdash; {{ user.email }}</span>
+            <span class="group-meta">{{ user.role }}</span>
+          </div>
+        } @empty {
+          <p class="empty-note">No users match.</p>
+        }
+      </div>
     </div>
   </div>
 
   <div class="card panel">
     <div class="card-body">
       <div class="panel-title">Removed Users</div>
-      @for (removed of removedUsers(); track removed.userId) {
-        <div class="request-card">
-          <div class="request-header">
-            <span class="group-name">{{ removed.username ?? ('User #' + removed.userId) }} &mdash; {{ removed.email }}</span>
-            <time class="group-meta" [attr.datetime]="removed.removedAt">removed {{ removed.removedAt | date: 'd MMM y' }}</time>
-          </div>
-          @if (removed.reason) {
-            <div class="group-meta">
-              Report{{ removed.groupName ? ' in ' + removed.groupName : '' }}: {{ removed.reason }}
-              @if (removed.requesterName) {
-                &middot; requested by {{ removed.requesterName }}
-              }
+      <div class="scroll-list">
+        @for (removed of removedUsers(); track removed.userId) {
+          <div class="request-card">
+            <div class="request-header">
+              <span class="group-name"
+                >{{ removed.username ?? 'User #' + removed.userId }} &mdash;
+                {{ removed.email }}</span
+              >
+              <time class="group-meta" [attr.datetime]="removed.removedAt"
+                >removed {{ removed.removedAt | date: 'd MMM y' }}</time
+              >
             </div>
-          }
-        </div>
-      } @empty {
-        <p class="empty-note">No users have been removed from Fabulari.</p>
-      }
+            @if (removed.reason) {
+              <div class="group-meta">
+                Report{{ removed.groupName ? ' in ' + removed.groupName : '' }}:
+                {{ removed.reason }}
+                @if (removed.requesterName) {
+                  &middot; requested by {{ removed.requesterName }}
+                }
+              </div>
+            }
+          </div>
+        } @empty {
+          <p class="empty-note">No users have been removed from Fabulari.</p>
+        }
+      </div>
     </div>
   </div>
 
@@ -153,7 +244,12 @@
       <div class="panel-title">Audit Log</div>
       <div class="audit-controls">
         <label for="auditType" class="form-label">Type</label>
-        <select id="auditType" class="form-control form-control-sm" [ngModel]="auditType()" (ngModelChange)="setAuditType($event)">
+        <select
+          id="auditType"
+          class="form-control form-control-sm"
+          [ngModel]="auditType()"
+          (ngModelChange)="setAuditType($event)"
+        >
           <option value="">All types</option>
           @for (type of auditTypes(); track type) {
             <option [value]="type">{{ type }}</option>
@@ -163,17 +259,37 @@
           {{ auditOrder() === 'newest' ? 'Newest first' : 'Oldest first' }}
         </button>
       </div>
-      @for (entry of auditLog(); track entry.id) {
-        <div class="audit-entry">
-          <div class="audit-top">
-            <span class="audit-type">{{ entry.type }}</span>
-            <time class="log-date" [attr.datetime]="entry.timestamp">{{ entry.timestamp | date: 'd MMM y, h:mm:ss a' }}</time>
+      <div class="scroll-list audit-list">
+        @for (entry of auditLog(); track entry.id) {
+          <div class="audit-entry" animate.enter="fade-in">
+            <div class="audit-top">
+              <span class="audit-type">{{ entry.type }}</span>
+              <time class="log-date" [attr.datetime]="entry.timestamp">{{
+                entry.timestamp | date: 'd MMM y, h:mm:ss a'
+              }}</time>
+            </div>
+            <div class="audit-details">
+              <strong>{{ entry.actorName ?? 'System' }}</strong
+              >: {{ entry.details }}
+            </div>
           </div>
-          <div class="audit-details"><strong>{{ entry.actorName ?? 'System' }}</strong>: {{ entry.details }}</div>
-        </div>
-      } @empty {
-        <p class="empty-note">No audit entries{{ auditType() ? ' of this type' : '' }} yet.</p>
-      }
+        } @empty {
+          <p class="empty-note">No audit entries{{ auditType() ? ' of this type' : '' }} yet.</p>
+        }
+      </div>
+      <div class="audit-footer">
+        <span class="group-meta">Showing {{ auditLog().length }} of {{ auditTotal() }}</span>
+        @if (auditLog().length < auditTotal()) {
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-dark"
+            [disabled]="auditLoading()"
+            (click)="loadMoreAudit()"
+          >
+            {{ auditLoading() ? 'Loading…' : 'Load more' }}
+          </button>
+        }
+      </div>
     </div>
   </div>
 </div>

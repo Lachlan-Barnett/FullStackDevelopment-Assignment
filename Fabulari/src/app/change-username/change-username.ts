@@ -4,7 +4,9 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService, CurrentUser } from '../services/auth.service';
 import { API_URL } from '../api.config';
+import { LIMITS, usernameError } from '../validation';
 
+// Changes the logged-in user's username. Usernames are unique, so the server may say it is taken.
 @Component({
   selector: 'app-change-username',
   imports: [FormsModule, RouterLink],
@@ -17,15 +19,14 @@ export class ChangeUsername {
   private readonly auth = inject(AuthService);
 
   protected readonly errorMessage = signal('');
+  protected readonly limits = LIMITS;
   protected newUsername = '';
 
+  // Checks the new name, saves it, updates the logged-in user and goes back to Settings.
   onSubmit() {
-    this.errorMessage.set('');
-
-    if (!this.newUsername.trim()) {
-      this.errorMessage.set('Username cannot be empty.');
-      return;
-    }
+    const problem = usernameError(this.newUsername);
+    this.errorMessage.set(problem);
+    if (problem) return;
 
     const currentUser = this.auth.currentUser();
     if (!currentUser) {
@@ -33,16 +34,18 @@ export class ChangeUsername {
       return;
     }
 
-    this.http.put<CurrentUser>(`${API_URL}/users/${currentUser.id}`, {
-      username: this.newUsername,
-    }).subscribe({
-      next: (updatedUser) => {
-        this.auth.updateCurrentUser(updatedUser);
-        this.router.navigateByUrl('/settings');
-      },
-      error: (err) => {
-        this.errorMessage.set(err.error?.message || 'Unable to change username.');
-      },
-    });
+    this.http
+      .put<CurrentUser>(`${API_URL}/users/${currentUser.id}`, {
+        username: this.newUsername.trim(),
+      })
+      .subscribe({
+        next: (updatedUser) => {
+          this.auth.updateCurrentUser({ username: updatedUser.username });
+          this.router.navigateByUrl('/settings');
+        },
+        error: (err) => {
+          this.errorMessage.set(err.error?.message || 'Unable to change username.');
+        },
+      });
   }
 }

@@ -5,6 +5,7 @@ export interface User {
   birthdate: string;
   role: 'user' | 'superadmin';
   profilePhoto?: string | null; // server path, e.g. /uploads/avatars/2.png?v=...
+  darkMode?: boolean; // the display setting, saved on the account
 }
 
 // An account the super admin permanently removed from Fabulari. Its email can never sign up again.

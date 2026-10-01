@@ -22,7 +22,9 @@
   padding: 0.25rem;
 }
 
-.groups-col, .rooms-col, .info-col {
+.groups-col,
+.rooms-col,
+.info-col {
   width: 7vw;
   min-width: 100px;
   flex-shrink: 0;
@@ -253,12 +255,13 @@
   cursor: pointer;
 }
 
-.description-toggle, .groups-toggle {
-width: 32px;
-border: 2px solid #333;
-border-radius: 8px;
-background: #f1f1f1;
-cursor: pointer;
+.description-toggle,
+.groups-toggle {
+  width: 32px;
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: #f1f1f1;
+  cursor: pointer;
 }
 
 .toggle-row {
@@ -270,7 +273,9 @@ cursor: pointer;
 }
 
 @media (max-width: 900px) {
-  .groups-col, .rooms-col, .info-col {
+  .groups-col,
+  .rooms-col,
+  .info-col {
     width: 12vw;
     min-width: 30px;
     margin-top: 0.5rem;
@@ -280,7 +285,8 @@ cursor: pointer;
     gap: 0.4rem;
   }
 
-  .list-btn, .panel-title {
+  .list-btn,
+  .panel-title {
     padding: 0.35rem;
     font-size: clamp(0.7rem, 1vw, 1rem);
   }
@@ -319,7 +325,6 @@ cursor: pointer;
 .request-room-btn {
   font-size: 0.85rem;
 }
-
 
 .room-request-form {
   border: 2px solid #333;
@@ -369,4 +374,10 @@ cursor: pointer;
   margin: 0.5rem 0 0;
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
+}
+
+/* Dark mode for your own messages. It lives here rather than in styles.css because Angular scopes the
+   light rule above to this component, which makes it outrank a global "body.dark-theme" rule. */
+:host-context(body.dark-theme) .message.mine .message-body {
+  background: #1d3557;
 }

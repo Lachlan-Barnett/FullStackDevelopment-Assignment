@@ -1,17 +1,41 @@
 <div class="card auth-card">
   <div class="card-body">
     <h1 class="auth-title">Login</h1>
-    <form (ngSubmit)="onSubmit()">
+    <form (ngSubmit)="onSubmit()" novalidate>
       <div class="form-field">
-        <label for="email" class="form-label">Email</label>
-        <input type="email" class="form-control" id="email" name="email" autocomplete="email" required [(ngModel)]="email">
+        <label for="login" class="form-label">Email or username</label>
+        <input
+          type="text"
+          class="form-control"
+          id="login"
+          name="login"
+          autocomplete="username"
+          maxlength="254"
+          required
+          [(ngModel)]="login"
+        />
       </div>
       <div class="form-field">
         <label for="password" class="form-label">Password</label>
-        <input [type]="showPassword() ? 'text' : 'password'" class="form-control" id="password" name="password" autocomplete="current-password" required [(ngModel)]="password">
+        <input
+          [type]="showPassword() ? 'text' : 'password'"
+          class="form-control"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          maxlength="100"
+          required
+          [(ngModel)]="password"
+        />
       </div>
       <div class="form-check text-start">
-        <input type="checkbox" class="form-check-input" id="show-password" aria-controls="password" (change)="togglePasswordVisibility()">
+        <input
+          type="checkbox"
+          class="form-check-input"
+          id="show-password"
+          aria-controls="password"
+          (change)="togglePasswordVisibility()"
+        />
         <label class="form-check-label" for="show-password">Show password</label>
       </div>
       @if (errorMessage()) {
@@ -19,7 +43,9 @@
       }
       <div class="button-row">
         <button type="button" class="btn btn-outline-dark" routerLink="/signup">Signup</button>
-        <button type="submit" class="btn btn-outline-dark">Submit</button>
+        <button type="submit" class="btn btn-outline-dark" [disabled]="sending()">
+          {{ sending() ? 'Logging in…' : 'Submit' }}
+        </button>
       </div>
     </form>
   </div>

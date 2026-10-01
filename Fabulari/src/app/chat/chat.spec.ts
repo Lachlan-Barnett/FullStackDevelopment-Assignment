@@ -8,7 +8,7 @@ import { Chat } from './chat';
 import { AuthService } from '../services/auth.service';
 import { ChatSocketService, PresenceUpdate } from '../services/chat-socket.service';
 import { API_URL } from '../api.config';
-import { Group, Message, PresenceEvent, Room } from '../models';
+import { Group, Message, PresenceEvent, RefreshEvent, Room, TypingEvent } from '../models';
 
 describe('Chat', () => {
   let fixture: ComponentFixture<Chat>;
@@ -18,9 +18,14 @@ describe('Chat', () => {
     presence$: Subject<PresenceUpdate>;
     activity$: Subject<PresenceEvent>;
     errors$: Subject<string>;
+    typing$: Subject<TypingEvent>;
+    refresh$: Subject<RefreshEvent>;
+    reconnected$: Subject<void>;
+    connectionLost: ReturnType<typeof signal<boolean>>;
     joinRoom: ReturnType<typeof vi.fn>;
     leaveRoom: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
+    sendTyping: ReturnType<typeof vi.fn>;
   };
 
   const group: Group = {
@@ -38,7 +43,13 @@ describe('Chat', () => {
     { id: 1, groupId: 1, name: 'start', description: '' },
     { id: 2, groupId: 1, name: 'memes', description: '' },
   ];
-  const msg = (id: number, senderId: number, senderName: string, content: string, roomId = 1): Message => ({
+  const msg = (
+    id: number,
+    senderId: number,
+    senderName: string,
+    content: string,
+    roomId = 1,
+  ): Message => ({
     id,
     roomId,
     senderId,
@@ -71,9 +82,14 @@ describe('Chat', () => {
       presence$: new Subject(),
       activity$: new Subject(),
       errors$: new Subject(),
+      typing$: new Subject(),
+      refresh$: new Subject(),
+      reconnected$: new Subject(),
+      connectionLost: signal(false),
       joinRoom: vi.fn(),
       leaveRoom: vi.fn(),
       sendMessage: vi.fn().mockResolvedValue(undefined),
+      sendTyping: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -85,7 +101,10 @@ describe('Chat', () => {
         { provide: ChatSocketService, useValue: fakeChat },
         {
           provide: AuthService,
-          useValue: { currentUser: signal({ id: 3, username: 'user2', role: 'user' }), logout: vi.fn() },
+          useValue: {
+            currentUser: signal({ id: 3, username: 'user2', role: 'user' }),
+            logout: vi.fn(),
+          },
         },
       ],
     });
@@ -119,7 +138,10 @@ describe('Chat', () => {
 
   it("shows the sender's profile photo, or their initial when they have none", async () => {
     await loadPage();
-    fakeChat.messages$.next({ ...msg(7, 2, 'user1', 'with photo'), senderPhoto: '/uploads/avatars/2.png?v=1' });
+    fakeChat.messages$.next({
+      ...msg(7, 2, 'user1', 'with photo'),
+      senderPhoto: '/uploads/avatars/2.png?v=1',
+    });
     fakeChat.messages$.next(msg(8, 3, 'user2', 'no photo'));
     await settle();
     const avatars = (fixture.nativeElement as HTMLElement).querySelectorAll('.message .avatar');
@@ -141,11 +163,15 @@ describe('Chat', () => {
 
   // Types into the real input and submits the real form, like a user would.
   async function typeAndSend(value: string) {
-    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name=draft]')!;
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      'input[name=draft]',
+    )!;
     input.value = value;
     input.dispatchEvent(new Event('input'));
     await settle();
-    (fixture.nativeElement as HTMLElement).querySelector('form.message-input-row')!.dispatchEvent(new Event('submit'));
+    (fixture.nativeElement as HTMLElement)
+      .querySelector('form.message-input-row')!
+      .dispatchEvent(new Event('submit'));
     await settle();
     return input;
   }
@@ -167,12 +193,15 @@ describe('Chat', () => {
 
   describe('images', () => {
     type WithSendImage = { sendImage(input: HTMLInputElement): Promise<void> };
-    const pick = (file: File) => ({ files: [file], value: 'C:\\fakepath\\x' }) as unknown as HTMLInputElement;
+    const pick = (file: File) =>
+      ({ files: [file], value: 'C:\\fakepath\\x' }) as unknown as HTMLInputElement;
     const png = (bytes = 10) => new File([new Uint8Array(bytes)], 'pic.png', { type: 'image/png' });
 
     it('uploads a PNG then sends it as an image message', async () => {
       await loadPage();
-      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png()));
+      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(
+        pick(png()),
+      );
       const upload = http.expectOne(`${API_URL}/rooms/1/images`);
       expect(upload.request.method).toBe('POST');
       expect((upload.request.body as FormData).get('image')).toBeInstanceOf(File);
@@ -192,7 +221,9 @@ describe('Chat', () => {
 
     it('refuses images over 2MB without uploading', async () => {
       await loadPage();
-      await (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png(2 * 1024 * 1024 + 1)));
+      await (fixture.componentInstance as unknown as WithSendImage).sendImage(
+        pick(png(2 * 1024 * 1024 + 1)),
+      );
       await settle();
       http.expectNone(`${API_URL}/rooms/1/images`);
       expect(text()).toContain('Images must be 2MB or smaller.');
@@ -200,10 +231,15 @@ describe('Chat', () => {
 
     it('shows the server error if the upload is rejected', async () => {
       await loadPage();
-      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(pick(png()));
+      const sending = (fixture.componentInstance as unknown as WithSendImage).sendImage(
+        pick(png()),
+      );
       http
         .expectOne(`${API_URL}/rooms/1/images`)
-        .flush({ message: 'Only PNG images are allowed' }, { status: 400, statusText: 'Bad Request' });
+        .flush(
+          { message: 'Only PNG images are allowed' },
+          { status: 400, statusText: 'Bad Request' },
+        );
       await sending;
       await settle();
       expect(text()).toContain('Only PNG images are allowed');
@@ -214,7 +250,9 @@ describe('Chat', () => {
       await loadPage();
       fakeChat.messages$.next({ ...msg(9, 2, 'user1', '/uploads/abc.png'), type: 'image' });
       await settle();
-      const img = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.message-image');
+      const img = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>(
+        '.message-image',
+      );
       expect(img?.getAttribute('src')).toBe('http://localhost:3000/uploads/abc.png');
       expect(img?.getAttribute('alt')).toBe('Image sent by user1');
     });
@@ -274,7 +312,10 @@ describe('Chat', () => {
       await submit();
       http
         .expectOne(`${API_URL}/groups/1/room-requests`)
-        .flush({ message: 'This group already has a room with that name' }, { status: 409, statusText: 'Conflict' });
+        .flush(
+          { message: 'This group already has a room with that name' },
+          { status: 409, statusText: 'Conflict' },
+        );
       await settle();
       expect(el().textContent).toContain('This group already has a room with that name');
       expect(el().querySelector<HTMLInputElement>('#roomRequestName')!.value).toBe('start');
@@ -286,6 +327,144 @@ describe('Chat', () => {
     (fixture.componentInstance as unknown as { selectRoom(id: number): void }).selectRoom(2);
     expect(fakeChat.leaveRoom).toHaveBeenCalledWith(1);
     expect(fakeChat.joinRoom).toHaveBeenLastCalledWith(2);
+  });
+
+  describe('typing indicator', () => {
+    it('shows who is typing in the open room, and clears it when they stop or send', async () => {
+      await loadPage();
+      const user1 = { userId: 2, username: 'user1' };
+      fakeChat.typing$.next({ roomId: 1, user: user1, typing: true });
+      await settle();
+      expect(text()).toContain('user1 is typing…');
+      fakeChat.typing$.next({ roomId: 1, user: user1, typing: false });
+      await settle();
+      expect(text()).not.toContain('is typing');
+      fakeChat.typing$.next({ roomId: 1, user: user1, typing: true });
+      fakeChat.messages$.next(msg(9, 2, 'user1', 'done typing'));
+      await settle();
+      expect(text()).not.toContain('is typing');
+    });
+
+    it('names two people, then says several', async () => {
+      await loadPage();
+      fakeChat.typing$.next({ roomId: 1, user: { userId: 2, username: 'user1' }, typing: true });
+      fakeChat.typing$.next({ roomId: 1, user: { userId: 4, username: 'carol' }, typing: true });
+      await settle();
+      expect(text()).toContain('user1 and carol are typing…');
+      fakeChat.typing$.next({ roomId: 1, user: { userId: 5, username: 'dave' }, typing: true });
+      await settle();
+      expect(text()).toContain('Several people are typing…');
+    });
+
+    it('ignores typing in other rooms', async () => {
+      await loadPage();
+      fakeChat.typing$.next({ roomId: 2, user: { userId: 2, username: 'user1' }, typing: true });
+      await settle();
+      expect(text()).not.toContain('is typing');
+    });
+
+    it('tells the room once when you start typing, and when you send', async () => {
+      await loadPage();
+      const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        'input[name=draft]',
+      )!;
+      for (const value of ['h', 'he', 'hey']) {
+        input.value = value;
+        input.dispatchEvent(new Event('input'));
+      }
+      expect(fakeChat.sendTyping).toHaveBeenCalledTimes(1);
+      expect(fakeChat.sendTyping).toHaveBeenCalledWith(1, true);
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('form.message-input-row')!
+        .dispatchEvent(new Event('submit'));
+      await settle();
+      expect(fakeChat.sendTyping).toHaveBeenLastCalledWith(1, false);
+    });
+  });
+
+  describe('live updates', () => {
+    it('reloads the rooms when one is added, keeping the open room', async () => {
+      await loadPage();
+      fakeChat.refresh$.next({ scope: 'rooms', groupId: 1 });
+      http
+        .expectOne(`${API_URL}/groups/1/rooms`)
+        .flush([...rooms, { id: 3, groupId: 1, name: 'news', description: '' }]);
+      await settle();
+      expect(text()).toContain('news');
+      expect(fakeChat.joinRoom).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves to another room when the open one is deleted', async () => {
+      await loadPage();
+      fakeChat.refresh$.next({ scope: 'rooms', groupId: 1 });
+      http.expectOne(`${API_URL}/groups/1/rooms`).flush([rooms[1]]);
+      await settle();
+      expect(fakeChat.leaveRoom).toHaveBeenCalledWith(1);
+      expect(fakeChat.joinRoom).toHaveBeenLastCalledWith(2);
+    });
+
+    it('leaves the group straight away when removed from it', async () => {
+      await loadPage();
+      fakeChat.refresh$.next({ scope: 'groups' });
+      http.expectOne(`${API_URL}/groups`).flush([]);
+      await settle();
+      expect(fakeChat.leaveRoom).toHaveBeenCalledWith(1);
+      expect(text()).toContain('Join a group to start chatting.');
+    });
+
+    it('keeps the open group when the group list reloads', async () => {
+      await loadPage();
+      fakeChat.refresh$.next({ scope: 'groups' });
+      http.expectOne(`${API_URL}/groups`).flush([{ ...group, name: 'help desk' }]);
+      http.expectOne(`${API_URL}/groups/1/members`).flush([]);
+      await settle();
+      expect(text()).toContain('help desk');
+      expect(fakeChat.joinRoom).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejoins the open room when the connection comes back', async () => {
+      await loadPage();
+      fakeChat.reconnected$.next();
+      await settle();
+      expect(fakeChat.joinRoom).toHaveBeenCalledTimes(2);
+      expect(fakeChat.joinRoom).toHaveBeenLastCalledWith(1);
+    });
+
+    it('shows a banner while the connection is lost', async () => {
+      await loadPage();
+      fakeChat.connectionLost.set(true);
+      await settle();
+      expect(text()).toContain('Connection lost. Reconnecting');
+    });
+  });
+
+  describe('image viewer', () => {
+    const image: Message = { ...msg(7, 2, 'user1', '/uploads/pic.png'), type: 'image' };
+
+    it('opens an image full size and closes with Escape', async () => {
+      await loadPage([image]);
+      const root = fixture.nativeElement as HTMLElement;
+      root.querySelector<HTMLButtonElement>('.image-btn')!.click();
+      await settle();
+      expect(document.querySelector('.image-viewer img')?.getAttribute('src')).toContain(
+        '/uploads/pic.png',
+      );
+      expect(document.querySelector('.image-viewer')?.textContent).toContain('Sent by user1');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await settle();
+      expect(document.querySelector('.image-viewer')).toBeNull();
+    });
+
+    it('closes with the Close button', async () => {
+      await loadPage([image]);
+      (fixture.nativeElement as HTMLElement)
+        .querySelector<HTMLButtonElement>('.image-btn')!
+        .click();
+      await settle();
+      document.querySelector<HTMLButtonElement>('.image-viewer-close')!.click();
+      await settle();
+      expect(document.querySelector('.image-viewer')).toBeNull();
+    });
   });
 
   it('leaves the room when the page is closed', async () => {
