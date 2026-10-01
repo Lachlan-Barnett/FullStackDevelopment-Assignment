@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { BannedMember, COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, JoinRequest, Report, Room, RoomRequest, User } from '../models';
+import { BannedMember, COLOUR_THEMES, ColourTheme, Group, GroupDeleteRequest, GroupMember, GroupMemberDetails, JoinRequest, Report, Room, RoomRequest } from '../models';
 
 @Component({
   selector: 'app-group-admin-dashboard',
@@ -22,7 +22,8 @@ export class GroupAdminDashboard {
   protected readonly currentUserId = computed(() => this.auth.currentUser()?.id ?? null);
   protected readonly group = signal<Group | null>(null);
   protected readonly rooms = signal<Room[]>([]);
-  protected readonly users = signal<User[]>([]);
+  // Usernames of this group's members (from GET /groups/:groupId/members, which never includes emails).
+  protected readonly memberNames = signal<GroupMemberDetails[]>([]);
   protected readonly errorMessage = signal('');
   protected readonly saveNotice = signal('');
 
@@ -55,7 +56,7 @@ export class GroupAdminDashboard {
     if (!group) return [];
     return group.members.map((m) => ({
       ...m,
-      user: this.users().find((u) => u.id === m.userId),
+      user: this.memberNames().find((u) => u.userId === m.userId),
     }));
   });
 
@@ -68,9 +69,6 @@ export class GroupAdminDashboard {
     this.loadDeleteRequests(groupID);
     this.loadReports(groupID);
     this.loadBanned(groupID);
-    this.http.get<User[]>(`${API_URL}/users`).subscribe({
-      next: (users) => this.users.set(users),
-    });
   }
 
   private loadGroup(groupId: number) {
@@ -80,8 +78,15 @@ export class GroupAdminDashboard {
         this.editDescription = group.description;
         this.editAgeLimit = group.ageLimit;
         this.editColourTheme = group.colourTheme;
+        this.loadMemberNames(groupId); // membership may have changed
       },
       error: () => this.errorMessage.set('Unable to load this group.'),
+    });
+  }
+
+  private loadMemberNames(groupId: number) {
+    this.http.get<GroupMemberDetails[]>(`${API_URL}/groups/${groupId}/members`).subscribe({
+      next: (members) => this.memberNames.set(members),
     });
   }
 

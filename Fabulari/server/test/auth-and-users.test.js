@@ -20,14 +20,17 @@ scenario('Login, signup and password hashing', async ({ check, api, call, login,
   check('password is stored as a bcrypt hash, not plain text', stored.passwordHash.startsWith('$2') && !('password' in stored));
 
   const U1 = await login('user1@com.au');
-  r = await call('user list loads', 200, 'GET', '/users', U1);
+  const SA = await login('admin@test.com');
+  await call("normal users can't list every account (profiles are private)", 403, 'GET', '/users', U1);
+  r = await call('the super admin can list every account', 200, 'GET', '/users', SA);
   check('user list never includes password hashes', !JSON.stringify(r.body).includes('passwordHash'));
   check('user list never includes Mongo _id', !JSON.stringify(r.body).includes('"_id"'));
 });
 
-scenario('Changing password', async ({ check, call, login, signup }) => {
-  const T = await signup('t@t.com', 't', '2001-01-01', 'pw1');
-  const id = (await call('look up own account', 200, 'GET', '/users', T)).body.find((u) => u.email === 't@t.com').id;
+scenario('Changing password', async ({ check, call, login }) => {
+  const created = await call('sign up', 200, 'POST', '/signup', null, { email: 't@t.com', username: 't', birthdate: '2001-01-01', password: 'pw1' });
+  const T = created.body.token;
+  const id = created.body.id;
 
   await call('new password must be typed twice', 400, 'PUT', `/users/${id}/password`, T, { currentPassword: 'pw1', newPassword: 'a' });
   await call('mismatched new passwords are refused', 400, 'PUT', `/users/${id}/password`, T, {

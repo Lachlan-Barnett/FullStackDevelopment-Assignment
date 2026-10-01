@@ -47,6 +47,9 @@ describe('GroupAdminDashboard', () => {
     { id: 2, groupId: 1, requestedBy: 2, requesterName: 'user1', name: 'news', description: '', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '' },
   ];
 
+  const namesFor = (members: { userId: number; role: string }[]) =>
+    members.map((m) => ({ ...m, username: users.find((u) => u.id === m.userId)?.username ?? null }));
+
   const el = () => fixture.nativeElement as HTMLElement;
   const settle = async () => {
     await fixture.whenStable();
@@ -67,7 +70,7 @@ describe('GroupAdminDashboard', () => {
     http.expectOne(`${API_URL}/groups/1/delete-requests`).flush(deletes);
     http.expectOne(`${API_URL}/groups/1/reports`).flush(reports);
     http.expectOne(`${API_URL}/groups/1/banned`).flush(banned);
-    http.expectOne(`${API_URL}/users`).flush(users);
+    http.expectOne(`${API_URL}/groups/1/members`).flush(namesFor(group.members));
     await settle();
   }
 
@@ -159,7 +162,9 @@ describe('GroupAdminDashboard', () => {
       put.flush({ ...joinRequest, status: 'approved' });
 
       http.expectOne(`${API_URL}/groups/1/join-requests`).flush([]);
-      http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [...group.members, { userId: 7, role: 'member' }] });
+      const withNewbie = [...group.members, { userId: 7, role: 'member' as const }];
+      http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: withNewbie });
+      http.expectOne(`${API_URL}/groups/1/members`).flush(namesFor(withNewbie));
       await settle();
 
       expect(panel('Join Requests').textContent).toContain('No pending join requests.');
@@ -309,6 +314,7 @@ describe('GroupAdminDashboard', () => {
       put.flush({ ...report, status: 'actioned' });
       http.expectOne(`${API_URL}/groups/1/reports`).flush([]);
       http.expectOne(`${API_URL}/groups/1`).flush({ ...group, members: [group.members[0]] });
+      http.expectOne(`${API_URL}/groups/1/members`).flush(namesFor([group.members[0]]));
       http
         .expectOne(`${API_URL}/groups/1/banned`)
         .flush([{ userId: 3, username: 'user2', bannedAt: '2026-09-30T02:00:00.000Z', bannedByName: 'user1', reason: 'spamming the room' }]);
@@ -430,6 +436,12 @@ describe('GroupAdminDashboard', () => {
   });
 
   describe('members', () => {
+    it('gets names from the group members endpoint, never the full user list', async () => {
+      await loadPage();
+      http.expectNone(`${API_URL}/users`);
+      expect(panel('Members').textContent).toContain('user2');
+    });
+
     it('marks you and disables demoting the only admin', async () => {
       await loadPage();
       const rows = [...panel('Members').querySelectorAll('.member-row')];

@@ -127,7 +127,9 @@ function initializeRoutes(app, db) {
   // Every route below this line requires a valid login token.
   app.use('/api', requireAuth);
 
-  app.get('/api/users', async (req, res) => {
+  // Every account, with emails. Profiles are private, so only the super admin may see this list;
+  // group admins get names for their own members from GET /groups/:groupId/members instead.
+  app.get('/api/users', requireSuperAdmin, async (req, res) => {
     res.json(await users.find({}, { projection: { _id: 0, passwordHash: 0 } }).toArray());
   });
 
