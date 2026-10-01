@@ -58,7 +58,7 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 | FR-26 | Group admins approve room requests, or reject them with a reason. | Admins can also approve or reject their own room requests. |
 | FR-27 | Group admins edit a room's name and description. | Room names stay unique within the group, ignoring case. The room keeps its messages. |
 | FR-28 | Group admins promote members and demote admins. A group always keeps at least one admin. | Any admin can demote any admin, including themselves, unless they are the last one. |
-| FR-29 | Group admins ban users from their group, based on a report. | Members report other members. A group admin reviews each report and bans or dismisses it. Bans are permanent and remove the user from the group. Admins cannot act on reports they filed, and admins must be demoted before they can be banned. |
+| FR-29 | Group admins ban users from their group, based on a report. | Members report other members. A group admin reviews each report and bans or dismisses it. Bans are permanent and remove the user from the group. Admins can act on reports they filed themselves, and admins must be demoted before they can be banned. |
 | FR-30 | Group admins ask the super admin to remove a user from the whole system. | Sent from a report. Only one request per user can be waiting at a time. |
 | FR-31 | Group admins ask the super admin to delete their group. | The group is only deleted if the super admin approves. |
 | FR-32 | Raising the age limit removes members who are now too young. | Applied straight away. Pending join requests from anyone too young are rejected. The change is refused if it would leave the group with no admin. |
@@ -282,7 +282,7 @@ Uploaded files are served from `/uploads`. Message history is returned by the `r
 |---|---|---|---|
 | POST | /api/reports | Report a member with `{ groupId, username, reason }`. Both users must be in the group. | User |
 | GET | /api/groups/:groupId/reports | Pending reports with the reporter's and reported user's names. | Group admin |
-| PUT | /api/groups/:groupId/reports/:reportId | Act with `{ action: "ban" or "dismiss" }`. Banning removes the member and records the ban. `403` for your own report, `409` if the user is an admin. | Group admin |
+| PUT | /api/groups/:groupId/reports/:reportId | Act with `{ action: "ban" or "dismiss" }`. Banning removes the member and records the ban. `409` if the user is an admin. | Group admin |
 | POST | /api/groups/:groupId/reports/:reportId/escalate | Ask the super admin to remove the reported user from Fabulari. | Group admin |
 | GET | /api/groups/:groupId/banned | Users banned from the group, with when, by whom and why. | Group admin |
 
@@ -500,7 +500,7 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `group-admin-dashboard.spec.ts` | does not ban if the confirmation is cancelled | Passed |
 | `group-admin-dashboard.spec.ts` | dismisses without banning | Passed |
 | `group-admin-dashboard.spec.ts` | asks the super admin to remove the user after confirming | Passed |
-| `group-admin-dashboard.spec.ts` | cannot act on a report you filed | Passed |
+| `group-admin-dashboard.spec.ts` | can act on a report you filed | Passed |
 | `group-admin-dashboard.spec.ts` | shows the server error, e.g. trying to ban an admin | Passed |
 | `group-admin-dashboard.spec.ts` | lists banned users with when, by whom and why | Passed |
 | `group-admin-dashboard.spec.ts` | shows accounts removed from Fabulari as "Removed user" | Passed |

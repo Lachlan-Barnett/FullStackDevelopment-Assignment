@@ -352,10 +352,10 @@ describe('GroupAdminDashboard', () => {
       expect(panel('Reports').textContent).toContain('No reports to review.');
     });
 
-    it('cannot act on a report you filed', async () => {
+    it('can act on a report you filed', async () => {
       await loadPage([], [], [{ ...report, reportedBy: 2, reporterName: 'user1' }]);
-      expect(panel('Reports').textContent).toContain('another admin must review it');
-      expect(panel('Reports').querySelector('button')).toBeNull();
+      expect(buttonIn(panel('Reports'), 'Ban from group')).toBeTruthy();
+      expect(buttonIn(panel('Reports'), 'Dismiss')).toBeTruthy();
     });
 
     it('shows the server error, e.g. trying to ban an admin', async () => {

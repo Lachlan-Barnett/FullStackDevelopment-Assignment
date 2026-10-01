@@ -658,10 +658,6 @@ function initializeRoutes(app, db) {
     const report = await reports.findOne({ id: Number(req.params.reportId), groupId: group.id }, NO_ID);
     if (!report) return res.status(404).json({ message: 'Report not found' });
     if (report.status !== 'pending') return res.status(409).json({ message: 'Report already actioned' });
-    // Admins can't act on their own reports (the client: no self-approving).
-    if (report.reportedBy === req.user.id) {
-      return res.status(403).json({ message: 'Another admin must review a report you filed' });
-    }
 
     const action = req.body.action;
     if (action !== 'ban' && action !== 'dismiss') {
@@ -735,9 +731,6 @@ function initializeRoutes(app, db) {
     const report = await reports.findOne({ id: Number(req.params.reportId), groupId: group.id }, NO_ID);
     if (!report) return res.status(404).json({ message: 'Report not found' });
     if (report.status !== 'pending') return res.status(409).json({ message: 'Report already actioned' });
-    if (report.reportedBy === req.user.id) {
-      return res.status(403).json({ message: 'Another admin must review a report you filed' });
-    }
 
     const target = await users.findOne({ id: report.reportedUserId }, NO_ID);
     if (!target) return res.status(404).json({ message: 'That user no longer exists' });

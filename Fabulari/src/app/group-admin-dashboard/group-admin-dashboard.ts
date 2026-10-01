@@ -167,10 +167,6 @@ export class GroupAdminDashboard {
     });
   }
 
-  isOwnReport(report: Report) {
-    return report.reportedBy === this.currentUserId();
-  }
-
   // Banning removes the user from the group for good; dismissing just closes the report.
   actionReport(report: Report, action: 'ban' | 'dismiss') {
     const group = this.group();
