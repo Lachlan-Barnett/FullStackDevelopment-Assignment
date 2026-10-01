@@ -13,3 +13,6 @@ Fabulari/server/test-uploads/
 Fabulari/cypress/screenshots/
 Fabulari/cypress/videos/
 Fabulari/cypress/downloads/
+
+# Uploads made while the Cypress tests run
+Fabulari/server/e2e-uploads/

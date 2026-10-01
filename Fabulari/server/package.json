@@ -9,6 +9,7 @@
   "scripts": {
     "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
     "start": "node listen.js",
+    "start:e2e": "node -r ./e2e-env.js listen.js",
     "seed": "node seed.js"
   },
   "dependencies": {

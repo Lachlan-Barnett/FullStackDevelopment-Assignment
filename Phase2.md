@@ -433,74 +433,214 @@ Every page was checked with axe-core against the WCAG 2.1 A and AA rules, in bot
 |---|---|---|
 | Unit and component tests | Vitest through Angular's unit-test builder, with Angular TestBed and a fake HTTP backend | Each component shows the right content and sends the right requests, the route guards allow and redirect correctly, and the socket service handles events (using a fake socket). No server is needed. |
 | Server API and socket tests | Node's built-in test runner (`node:test`) with `assert`, `fetch` and `socket.io-client` | Each test file starts the real server against a separate test database (`fabulari_test`) and uploads folder, reset before every scenario. The tests call the real endpoints and socket events and check status codes, responses, database contents and files on disk. |
-| End-to-end tests | Cypress | Real user and group admin flows through the running app in a browser, page by page. |
+| End-to-end tests | Cypress | Real user and group admin flows through the running app in a browser, page by page. The server is started with `npm run start:e2e`, which uses a separate database (`fabulari_e2e`) and uploads folder, reset before every test, so the real `fabulari` data is never touched. |
 
 Every change was checked with the unit tests and a production build, and every server change with the server test suite. To run the tests:
 
 ```bash
 cd Fabulari && npx ng test --watch=false   # Angular unit tests
 cd Fabulari/server && npm test              # server API and socket tests (MongoDB must be running)
+cd Fabulari/server && npm run start:e2e     # e2e server on port 3000 (stop the normal server first)
+cd Fabulari && npx ng serve                 # the app on port 4200
+cd Fabulari && npx cypress run              # end-to-end tests
 ```
 
 
-### Automated Unit Tests (118 tests)
+### Automated Unit Tests (118 tests, all passed)
 
-| Area | File | Tests |
+| File | Test | Result |
 |---|---|---|
-| App | `app.spec.ts` | Creates the app · shows the logo · applies saved dark mode on start-up · uses light mode by default |
-| Chat | `chat.spec.ts` | Joins the first room and shows who is present · shows history · shows live messages with an Admin badge · shows the sender's photo or initial · shows join and leave notices · sends a message and clears the box · shows send errors and keeps the text · uploads a PNG and sends it · refuses non-PNG files · refuses images over 2MB · shows upload errors · shows image messages · opens the Request room form · sends a room request · needs a room name · shows room request errors · leaves the old room when switching · leaves the room when the page closes |
-| Chat socket service | `chat-socket.service.spec.ts` | Connects with the login token · opens only one connection · does not connect when logged out · join returns history and who is present · a refused join fails · send returns the stored message · leaves rooms · passes on new messages · passes on join and leave notices · disconnects on logout |
-| Groups | `groups.spec.ts` | Shows Admin, Pending, rejected and Apply states · shows Banned with no Apply button · shows Leave only on your groups · leaves after confirming · does nothing if cancelled · explains why the only admin cannot leave · sends a join request · new group form has labelled fields and the three colours · sends a group request and clears the form · needs a name · rejects a bad age limit · shows server errors |
-| My Requests | `my-requests.spec.ts` | Lists pending requests with group names · lists rejected requests with reasons · leaves approved requests out · shows an error if loading fails |
-| Settings | `settings.spec.ts` | Back arrow goes to the user's home page · shows profile details · shows the initial and Add photo · uploads a photo · rejects non-PNG and oversized photos · removes the photo · shows upload errors |
-| Group admin dashboard | `group-admin-dashboard.spec.ts` | Warns about the age limit · saves and names removed members · says Saved when nobody was removed · leaves the dashboard if the admin removed themselves · shows the "no admin" error · lists join requests · approves and rejects join requests · shows join errors · lists reports · bans after confirming · asks the super admin to remove a user · dismisses reports · cannot act on your own report · edits channels · asks before deleting a channel · cannot approve your own channel request · needs a reason to reject a channel request · requests group deletion · shows pending and rejected deletion requests · lists banned members · gets member names without the full user list · marks you and protects the only admin |
-| Super admin dashboard | `super-admin-dashboard.spec.ts` | Lists and approves group requests · lists, approves and rejects deletion requests · lists and approves user removals · shows the "only admin" error · lists the audit log · filters by type · switches newest and oldest first · refreshes after each action |
-| Guards | `group-admin.guard.spec.ts`, `not-super-admin.guard.spec.ts` | Group admins allowed · members, missing groups and logged-out users redirected · normal users allowed · super admin sent to the dashboard |
-| Change password | `change-password.spec.ts` | Every field has a unique id and label · each Show checkbox reveals only its own field |
-| Other pages | `login`, `signup`, `report`, `change-username`, `change-birthdate` | Each page is created |
+| `app.spec.ts` | should create the app | Passed |
+| `app.spec.ts` | should render the Fabulari logo | Passed |
+| `app.spec.ts` | should apply dark mode on start-up when it was saved | Passed |
+| `app.spec.ts` | should stay in light mode by default | Passed |
+| `change-birthdate.spec.ts` | should create | Passed |
+| `change-password.spec.ts` | gives every field and checkbox a unique id with its own label | Passed |
+| `change-password.spec.ts` | each "Show" checkbox reveals only its own password field | Passed |
+| `change-password.spec.ts` | clicking a "Show" label toggles that checkbox, not another one | Passed |
+| `change-username.spec.ts` | should create | Passed |
+| `chat.spec.ts` | joins the first room of the first group and shows who is present | Passed |
+| `chat.spec.ts` | shows the room history returned when joining | Passed |
+| `chat.spec.ts` | shows live messages for the current room with an Admin badge for admins | Passed |
+| `chat.spec.ts` | shows the sender's profile photo, or their initial when they have none | Passed |
+| `chat.spec.ts` | shows join and leave notices | Passed |
+| `chat.spec.ts` | sends the typed message to the current room and clears the box on screen | Passed |
+| `chat.spec.ts` | shows the server error and keeps the text when sending fails | Passed |
+| `chat.spec.ts` | uploads a PNG then sends it as an image message | Passed |
+| `chat.spec.ts` | refuses non-PNG files without uploading | Passed |
+| `chat.spec.ts` | refuses images over 2MB without uploading | Passed |
+| `chat.spec.ts` | shows the server error if the upload is rejected | Passed |
+| `chat.spec.ts` | shows image messages as images from the server | Passed |
+| `chat.spec.ts` | opens a labelled form for the selected group | Passed |
+| `chat.spec.ts` | sends the request to the group and confirms | Passed |
+| `chat.spec.ts` | needs a name | Passed |
+| `chat.spec.ts` | shows the server error and keeps the form open | Passed |
+| `chat.spec.ts` | leaves the old room when switching rooms | Passed |
+| `chat.spec.ts` | leaves the room when the page is closed | Passed |
+| `group-admin-dashboard.spec.ts` | warns that raising the age limit removes members | Passed |
+| `group-admin-dashboard.spec.ts` | saves and names anyone removed by a higher age limit | Passed |
+| `group-admin-dashboard.spec.ts` | says Saved when nobody was removed | Passed |
+| `group-admin-dashboard.spec.ts` | leaves the dashboard if the admin removed themselves | Passed |
+| `group-admin-dashboard.spec.ts` | shows the server error, e.g. no admin would be left | Passed |
+| `group-admin-dashboard.spec.ts` | lists pending join requests | Passed |
+| `group-admin-dashboard.spec.ts` | shows an empty note when there are none | Passed |
+| `group-admin-dashboard.spec.ts` | approving adds the member and clears the request | Passed |
+| `group-admin-dashboard.spec.ts` | rejecting sends the optional reason | Passed |
+| `group-admin-dashboard.spec.ts` | shows the server error, e.g. the user no longer meets the age limit | Passed |
+| `group-admin-dashboard.spec.ts` | opens an inline form filled with the current values | Passed |
+| `group-admin-dashboard.spec.ts` | saves the new name and description | Passed |
+| `group-admin-dashboard.spec.ts` | asks before deleting a channel | Passed |
+| `group-admin-dashboard.spec.ts` | cancel closes the form without saving | Passed |
+| `group-admin-dashboard.spec.ts` | needs a name | Passed |
+| `group-admin-dashboard.spec.ts` | shows the server error, e.g. a duplicate name | Passed |
+| `group-admin-dashboard.spec.ts` | can't action your own request | Passed |
+| `group-admin-dashboard.spec.ts` | needs a reason to reject | Passed |
+| `group-admin-dashboard.spec.ts` | lists reports with who reported whom and why | Passed |
+| `group-admin-dashboard.spec.ts` | bans after confirming and removes the member | Passed |
+| `group-admin-dashboard.spec.ts` | does not ban if the confirmation is cancelled | Passed |
+| `group-admin-dashboard.spec.ts` | dismisses without banning | Passed |
+| `group-admin-dashboard.spec.ts` | asks the super admin to remove the user after confirming | Passed |
+| `group-admin-dashboard.spec.ts` | cannot act on a report you filed | Passed |
+| `group-admin-dashboard.spec.ts` | shows the server error, e.g. trying to ban an admin | Passed |
+| `group-admin-dashboard.spec.ts` | lists banned users with when, by whom and why | Passed |
+| `group-admin-dashboard.spec.ts` | shows accounts removed from Fabulari as "Removed user" | Passed |
+| `group-admin-dashboard.spec.ts` | shows an empty note and no unban option | Passed |
+| `group-admin-dashboard.spec.ts` | sends a deletion request after confirming | Passed |
+| `group-admin-dashboard.spec.ts` | does nothing if the admin cancels the confirmation | Passed |
+| `group-admin-dashboard.spec.ts` | shows a pending request instead of the button | Passed |
+| `group-admin-dashboard.spec.ts` | shows why the last request was rejected | Passed |
+| `group-admin-dashboard.spec.ts` | gets names from the group members endpoint, never the full user list | Passed |
+| `group-admin-dashboard.spec.ts` | marks you and disables demoting the only admin | Passed |
+| `groups.spec.ts` | shows Admin, Pending, rejected reason and Apply states | Passed |
+| `groups.spec.ts` | shows Banned with no Apply button for groups you were banned from | Passed |
+| `groups.spec.ts` | sends a join request and shows Pending | Passed |
+| `groups.spec.ts` | shows a Leave button on groups you belong to | Passed |
+| `groups.spec.ts` | leaves after confirming and reloads the groups | Passed |
+| `groups.spec.ts` | does nothing if cancelled | Passed |
+| `groups.spec.ts` | shows why the only admin cannot leave | Passed |
+| `groups.spec.ts` | opens the form with labelled fields | Passed |
+| `groups.spec.ts` | sends the request and clears the form | Passed |
+| `groups.spec.ts` | needs a name | Passed |
+| `groups.spec.ts` | rejects a bad age limit | Passed |
+| `groups.spec.ts` | shows the server error, e.g. a duplicate name | Passed |
+| `group-admin.guard.spec.ts` | allows an admin of the group | Passed |
+| `group-admin.guard.spec.ts` | redirects a plain member to /chat | Passed |
+| `group-admin.guard.spec.ts` | redirects to /chat when the group does not exist | Passed |
+| `group-admin.guard.spec.ts` | redirects to /chat without calling the server when nobody is logged in | Passed |
+| `not-super-admin.guard.spec.ts` | lets normal users through | Passed |
+| `not-super-admin.guard.spec.ts` | sends the super admin to their dashboard | Passed |
+| `login.spec.ts` | should create | Passed |
+| `my-requests.spec.ts` | lists pending requests of every kind, newest first, with group names | Passed |
+| `my-requests.spec.ts` | lists rejected requests with their reason | Passed |
+| `my-requests.spec.ts` | leaves approved requests out | Passed |
+| `my-requests.spec.ts` | shows an error if loading fails | Passed |
+| `report.spec.ts` | should create | Passed |
+| `chat-socket.service.spec.ts` | connects to the server with the login token | Passed |
+| `chat-socket.service.spec.ts` | only opens one connection | Passed |
+| `chat-socket.service.spec.ts` | does not connect when logged out | Passed |
+| `chat-socket.service.spec.ts` | joins a room and resolves with history and who is present | Passed |
+| `chat-socket.service.spec.ts` | rejects a join the server refuses | Passed |
+| `chat-socket.service.spec.ts` | sends a message and resolves with the stored message | Passed |
+| `chat-socket.service.spec.ts` | emits room:leave | Passed |
+| `chat-socket.service.spec.ts` | passes incoming messages to messages$ | Passed |
+| `chat-socket.service.spec.ts` | turns presence:joined and presence:left into activity$ events | Passed |
+| `chat-socket.service.spec.ts` | disconnects when the user logs out | Passed |
+| `settings.spec.ts` | the back arrow goes to the user's home page | Passed |
+| `settings.spec.ts` | shows the profile details | Passed |
+| `settings.spec.ts` | shows the initial and "Add photo" when there is no photo | Passed |
+| `settings.spec.ts` | uploads a PNG and shows the new photo | Passed |
+| `settings.spec.ts` | rejects non-PNG and oversized photos without uploading | Passed |
+| `settings.spec.ts` | removes the photo | Passed |
+| `settings.spec.ts` | shows the server error when the upload is rejected | Passed |
+| `signup.spec.ts` | should create | Passed |
+| `super-admin-dashboard.spec.ts` | lists group requests | Passed |
+| `super-admin-dashboard.spec.ts` | approves a group request | Passed |
+| `super-admin-dashboard.spec.ts` | lists deletion requests with their reason | Passed |
+| `super-admin-dashboard.spec.ts` | deletes the group after confirming | Passed |
+| `super-admin-dashboard.spec.ts` | does not delete if the confirmation is cancelled | Passed |
+| `super-admin-dashboard.spec.ts` | rejects a deletion request without asking to confirm | Passed |
+| `super-admin-dashboard.spec.ts` | lists who, their email, who asked, the group and the report | Passed |
+| `super-admin-dashboard.spec.ts` | removes the user after confirming and refreshes users and groups | Passed |
+| `super-admin-dashboard.spec.ts` | does not remove if the confirmation is cancelled | Passed |
+| `super-admin-dashboard.spec.ts` | shows the server error, e.g. the user is the only admin of a group | Passed |
+| `super-admin-dashboard.spec.ts` | lists entries with type, who and what | Passed |
+| `super-admin-dashboard.spec.ts` | offers every type in the filter | Passed |
+| `super-admin-dashboard.spec.ts` | filters by type | Passed |
+| `super-admin-dashboard.spec.ts` | switches between newest and oldest first | Passed |
+| `super-admin-dashboard.spec.ts` | refreshes after the super admin acts | Passed |
 
 
-### Automated Server Tests (425 checks in 21 scenarios)
+### Automated Server Tests (21 scenarios, 425 checks, all passed)
 
-The tests are in `Fabulari/server/test/`, and every check is reported by name when they run.
+The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks, and every check is reported by name when the tests run.
 
-| File | Scenario | Checks |
+| File | Scenario | Checks | Result |
+|---|---|---|---|
+| `auth-and-users.test.js` | Login, sign-up and password hashing | 18 | Passed |
+| `auth-and-users.test.js` | Changing password | 7 | Passed |
+| `auth-and-users.test.js` | Login tokens and access control | 12 | Passed |
+| `requests-and-roles.test.js` | Join requests and the age limit | 14 | Passed |
+| `requests-and-roles.test.js` | New group requests | 18 | Passed |
+| `requests-and-roles.test.js` | Room requests and deleting rooms | 20 | Passed |
+| `requests-and-roles.test.js` | Promoting and demoting admins | 6 | Passed |
+| `requests-and-roles.test.js` | Filing reports | 4 | Passed |
+| `chat-sockets.test.js` | Socket connections, rooms, presence and messages | 29 | Passed |
+| `chat-sockets.test.js` | Only the last 5 messages per room are kept | 12 | Passed |
+| `chat-sockets.test.js` | The super admin does not chat | 7 | Passed |
+| `images-and-photos.test.js` | Image messages (PNG only, max 2MB) | 27 | Passed |
+| `images-and-photos.test.js` | Profile photos | 24 | Passed |
+| `moderation.test.js` | Group deletion requests | 28 | Passed |
+| `moderation.test.js` | Reports and group bans | 32 | Passed |
+| `moderation.test.js` | Banned members list | 16 | Passed |
+| `moderation.test.js` | Removing a user from Fabulari | 42 | Passed |
+| `group-admin.test.js` | Raising the age limit removes under-age members | 33 | Passed |
+| `group-admin.test.js` | Audit log | 43 | Passed |
+| `group-admin.test.js` | Leaving a group | 16 | Passed |
+| `group-admin.test.js` | Editing a room | 17 | Passed |
+
+
+### Automated End-to-End Tests (Cypress, 39 tests, all passed)
+
+The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. They run against the real app and the e2e server, and the `fabulari_e2e` database is reset to the demo data before every test.
+
+| File | Test | Result |
 |---|---|---|
-| `auth-and-users.test.js` | Login, sign-up and password hashing | 18 |
-| | Changing password | 7 |
-| | Login tokens and access control | 12 |
-| `requests-and-roles.test.js` | Join requests and the age limit | 14 |
-| | New group requests | 18 |
-| | Room requests and deleting rooms | 20 |
-| | Promoting and demoting admins | 6 |
-| | Filing reports | 4 |
-| `chat-sockets.test.js` | Socket connections, rooms, presence and messages | 29 |
-| | Only the last 5 messages per room are kept | 12 |
-| | The super admin does not chat | 7 |
-| `images-and-photos.test.js` | Image messages (PNG only, at most 2MB) | 27 |
-| | Profile photos | 24 |
-| `moderation.test.js` | Group deletion requests | 28 |
-| | Reports and group bans | 32 |
-| | Banned members list | 16 |
-| | Removing a user from Fabulari | 42 |
-| `group-admin.test.js` | Raising the age limit removes under-age members | 33 |
-| | Audit log | 43 |
-| | Leaving a group | 16 |
-| | Editing a room | 17 |
-
-
-### Automated End-to-End Tests (Cypress, 39 tests)
-
-The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. They run against the real app and server, and the demo database is reset before every test. Steps that are not being tested (such as creating an extra user or a join request) are done through the API so each test only drives the page it is testing. Run them with the server and app running, using `npx cypress run` in `Fabulari`.
-
-| User | Page (file) | Tests |
-|---|---|---|
-| User | Login (`user/login.cy.ts`) | U3 logs in and opens chat · U4 wrong password error · U5 pages need a login · U6 logs out · U7 shows and hides the password |
-| User | Signup (`user/signup.cy.ts`) | U1 signs up a new account · U2 refuses a registered email |
-| User | Chat (`user/chat.cy.ts`) | U8 sends a message · U9 messages are kept for other users · U10 only the last 5 messages are kept · U11 links and HTML shown as text · U12 sends a PNG image · U13 refuses non-PNG images · U14 members listed with the admin marked · U19 requests a new room |
-| User | Groups (`user/groups.cy.ts`) | U15 asks to join a group · U16 under-age users rejected automatically · U17 requests a new group · U18 a new group needs a name · U21 leaves a group |
-| User | My Requests (`user/my-requests.cy.ts`) | U20 lists pending requests |
-| User | Submit Report (`user/report.cy.ts`) | U22 reports a member |
-| User | Settings (`user/settings.cy.ts`) | U23 dark mode is saved · U24 changes the username · U25 changes the password · U26 adds and removes a profile photo |
-| Group admin | Chat (`group-admin/chat.cy.ts`) | A1 only admins see Manage Group |
-| Group admin | Group Admin Dashboard (`group-admin/admin-dashboard.cy.ts`) | A2 members cannot open the page · A3 approves a join request · A4 rejects a join request with a reason · A5 approves a room request · A6 rejecting a room request needs a reason · A7 edits the group details · A8 raising the age limit removes under-age members · A9 promotes and demotes a member · A10 bans a member from a report · A11 edits a room · A12 deletes a room · A13 asks the super admin to delete the group |
+| `group-admin/admin-dashboard.cy.ts` | A2: members cannot open the admin page | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A3: approves a join request | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A4: rejects a join request with a reason | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A5: approves a room request | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A6: rejecting a room request needs a reason | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A7: edits the group details | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A8: raising the age limit removes under-age members | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A9: promotes and demotes a member | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A10: bans a member from a report | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A11: edits a room | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A12: deletes a room | Passed |
+| `group-admin/admin-dashboard.cy.ts` | A13: asks the super admin to delete the group | Passed |
+| `group-admin/chat.cy.ts` | A1: only admins see Manage Group | Passed |
+| `user/chat.cy.ts` | U8: sends a message | Passed |
+| `user/chat.cy.ts` | U9: messages are kept for other users | Passed |
+| `user/chat.cy.ts` | U10: only the last 5 messages are kept | Passed |
+| `user/chat.cy.ts` | U11: shows links and HTML as plain text | Passed |
+| `user/chat.cy.ts` | U12: sends a PNG image | Passed |
+| `user/chat.cy.ts` | U13: refuses images that are not PNG | Passed |
+| `user/chat.cy.ts` | U14: shows group members with the admin marked | Passed |
+| `user/chat.cy.ts` | U19: requests a new room | Passed |
+| `user/groups.cy.ts` | U15: asks to join a group | Passed |
+| `user/groups.cy.ts` | U16: under-age users are rejected automatically | Passed |
+| `user/groups.cy.ts` | U17: requests a new group | Passed |
+| `user/groups.cy.ts` | U18: a new group needs a name | Passed |
+| `user/groups.cy.ts` | U21: leaves a group | Passed |
+| `user/login.cy.ts` | U3: logs in and opens the chat page | Passed |
+| `user/login.cy.ts` | U4: shows an error for a wrong password | Passed |
+| `user/login.cy.ts` | U5: pages need a login | Passed |
+| `user/login.cy.ts` | U6: logs out | Passed |
+| `user/login.cy.ts` | U7: shows and hides the password | Passed |
+| `user/my-requests.cy.ts` | U20: lists pending requests | Passed |
+| `user/report.cy.ts` | U22: reports a member | Passed |
+| `user/settings.cy.ts` | U23: dark mode is saved | Passed |
+| `user/settings.cy.ts` | U24: changes the username | Passed |
+| `user/settings.cy.ts` | U25: changes the password | Passed |
+| `user/settings.cy.ts` | U26: adds and removes a profile photo | Passed |
+| `user/signup.cy.ts` | U1: signs up a new account | Passed |
+| `user/signup.cy.ts` | U2: refuses an email that is already registered | Passed |

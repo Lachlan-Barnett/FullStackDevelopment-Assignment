@@ -9,9 +9,12 @@ SETUP
 
 Before each run:
   1. Start MongoDB.
-  2. Reset the demo data:   cd Fabulari/server  then  npm run seed
-  3. Start the server:      node listen.js (port 3000)
-  4. Start the app:         ng serve   (port 4200)
+  2. Stop the normal server if it is running (both use port 3000).
+  3. Start the e2e server:  cd Fabulari/server  then  npm run start:e2e   (port 3000)
+     It uses its own "fabulari_e2e" database and e2e-uploads folder, so the tests never
+     touch the real "fabulari" data.
+  4. Start the app:         npx ng serve   (port 4200)
+  5. Run the tests:         cd Fabulari  then  npx cypress run
 
 Demo accounts (password "123" for all):
   user1@com.au     Admin of the "help" group
@@ -20,8 +23,8 @@ Demo accounts (password "123" for all):
 The "help" group has an age limit of 13 and one room called "start".
 
 Notes:
-  - Reset the data before each test (or each spec file) so tests don't depend on each other.
-    Running "npm run seed" through cy.exec() in a beforeEach hook works for this.
+  - The e2e database is reset to the demo data before every test (the "seed" task in
+    cypress.config.ts), so tests don't depend on each other.
   - Confirmation pop-ups (leave group, ban, delete room) need: cy.on('window:confirm', () => true)
   - Cypress runs one browser at a time, so tests involving two users log in as one user,
     act, log out, then log in as the other user.
