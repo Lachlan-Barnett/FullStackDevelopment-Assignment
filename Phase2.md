@@ -433,7 +433,7 @@ Every page was checked with axe-core against the WCAG 2.1 A and AA rules, in bot
 |---|---|---|
 | Unit and component tests | Vitest through Angular's unit-test builder, with Angular TestBed and a fake HTTP backend | Each component shows the right content and sends the right requests, the route guards allow and redirect correctly, and the socket service handles events (using a fake socket). No server is needed. |
 | Server API and socket tests | Node's built-in test runner (`node:test`) with `assert`, `fetch` and `socket.io-client` | Each test file starts the real server against a separate test database (`fabulari_test`) and uploads folder, reset before every scenario. The tests call the real endpoints and socket events and check status codes, responses, database contents and files on disk. |
-| End-to-end tests | Cypress | Real user flows through the running app in a browser. |
+| End-to-end tests | Cypress | Real user and group admin flows through the running app in a browser, page by page. |
 
 Every change was checked with the unit tests and a production build, and every server change with the server test suite. To run the tests:
 
@@ -489,8 +489,18 @@ The tests are in `Fabulari/server/test/`, and every check is reported by name wh
 | | Editing a room | 17 |
 
 
-### End-to-End Tests (Cypress)
+### Automated End-to-End Tests (Cypress, 39 tests)
 
-| Test | Covers |
-|---|---|
-| | |
+The tests are in `Fabulari/cypress/e2e/`, split by user type and then by page. They run against the real app and server, and the demo database is reset before every test. Steps that are not being tested (such as creating an extra user or a join request) are done through the API so each test only drives the page it is testing. Run them with the server and app running, using `npx cypress run` in `Fabulari`.
+
+| User | Page (file) | Tests |
+|---|---|---|
+| User | Login (`user/login.cy.ts`) | U3 logs in and opens chat · U4 wrong password error · U5 pages need a login · U6 logs out · U7 shows and hides the password |
+| User | Signup (`user/signup.cy.ts`) | U1 signs up a new account · U2 refuses a registered email |
+| User | Chat (`user/chat.cy.ts`) | U8 sends a message · U9 messages are kept for other users · U10 only the last 5 messages are kept · U11 links and HTML shown as text · U12 sends a PNG image · U13 refuses non-PNG images · U14 members listed with the admin marked · U19 requests a new room |
+| User | Groups (`user/groups.cy.ts`) | U15 asks to join a group · U16 under-age users rejected automatically · U17 requests a new group · U18 a new group needs a name · U21 leaves a group |
+| User | My Requests (`user/my-requests.cy.ts`) | U20 lists pending requests |
+| User | Submit Report (`user/report.cy.ts`) | U22 reports a member |
+| User | Settings (`user/settings.cy.ts`) | U23 dark mode is saved · U24 changes the username · U25 changes the password · U26 adds and removes a profile photo |
+| Group admin | Chat (`group-admin/chat.cy.ts`) | A1 only admins see Manage Group |
+| Group admin | Group Admin Dashboard (`group-admin/admin-dashboard.cy.ts`) | A2 members cannot open the page · A3 approves a join request · A4 rejects a join request with a reason · A5 approves a room request · A6 rejecting a room request needs a reason · A7 edits the group details · A8 raising the age limit removes under-age members · A9 promotes and demotes a member · A10 bans a member from a report · A11 edits a room · A12 deletes a room · A13 asks the super admin to delete the group |

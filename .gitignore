@@ -8,3 +8,8 @@ Fabulari/server/uploads/
 
 # Uploads made by the server test suite
 Fabulari/server/test-uploads/
+
+# Cypress output
+Fabulari/cypress/screenshots/
+Fabulari/cypress/videos/
+Fabulari/cypress/downloads/

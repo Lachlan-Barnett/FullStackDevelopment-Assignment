@@ -1,0 +1,230 @@
+FABULARI: CYPRESS END-TO-END TESTS
+==================================
+
+Main end-to-end tests for normal users and group admins. Super admin tests are not included.
+
+
+SETUP
+-----
+
+Before each run:
+  1. Start MongoDB.
+  2. Reset the demo data:   cd Fabulari/server  then  npm run seed
+  3. Start the server:      node listen.js (port 3000)
+  4. Start the app:         ng serve   (port 4200)
+
+Demo accounts (password "123" for all):
+  user1@com.au     Admin of the "help" group
+  user2@com.au     Member of the "help" group
+
+The "help" group has an age limit of 13 and one room called "start".
+
+Notes:
+  - Reset the data before each test (or each spec file) so tests don't depend on each other.
+    Running "npm run seed" through cy.exec() in a beforeEach hook works for this.
+  - Confirmation pop-ups (leave group, ban, delete room) need: cy.on('window:confirm', () => true)
+  - Cypress runs one browser at a time, so tests involving two users log in as one user,
+    act, log out, then log in as the other user.
+  - Images can be chosen with cy.selectFile() on the hidden file input.
+
+
+USEFUL SELECTORS
+----------------
+
+Login / Signup:     #email  #password  #username  #dob  button[type=submit]
+                    #show-password (Show password checkbox)
+Chat page:          .room-title  .present-users  .messages-list  .message  .message-image
+                    input[name=draft]  button[aria-label="Send message"]
+                    .request-room-btn  #roomRequestName  #roomRequestDescription  form.room-request-form
+                    .admin-link (Manage Group)  .settings (menu button)  .logout
+                    .description-toggle (group info panel)  .chat-error
+                    form.message-input-row input[type=file] (image picker)
+Groups page:        .group-row  #newGroupName  #newGroupDescription  #newGroupAgeLimit  #newGroupColour
+                    form.request-form  .error-text
+Settings:           #dark-mode  .photo-actions input[type=file]  img.avatar-large  .avatar-initial
+Group admin page:   .panel-title  .request-card  .member-row  .room-row  .error-text
+
+
+USER TESTS
+----------
+
+U1. Sign up a new account
+    Steps:    Go to /signup. Enter an email, username, date of birth (an adult) and password. Submit.
+    Expect:   The chat page opens and shows "Join a group to start chatting."
+
+U2. Sign up with an email that is already registered
+    Steps:    Sign up with user1@com.au.
+    Expect:   An error says the email is already registered. The page stays on /signup.
+
+U3. Log in
+    Steps:    Go to /. Log in as user2@com.au with password 123.
+    Expect:   The chat page opens with the "help" group and the "# start" room, and user2 is listed
+              under "In this room".
+
+U4. Log in with the wrong password
+    Steps:    Log in as user2@com.au with a wrong password.
+    Expect:   "Invalid email or password" is shown and the page stays on the login page.
+
+U5. Pages need a login
+    Steps:    Without logging in, visit /chat, /groups and /settings.
+    Expect:   Each one goes back to the login page.
+
+U6. Log out
+    Steps:    Log in, click Logout, then visit /chat.
+    Expect:   Logout returns to the login page, and /chat goes back to the login page.
+
+U7. Show password
+    Steps:    On the login page type a password and tick "Show password".
+    Expect:   The password field changes from hidden to visible text.
+
+U8. Send a message
+    Steps:    Log in as user2. Type "Hello everyone" and click the send button.
+    Expect:   The message appears with the sender's name and a time. The message box is cleared.
+
+U9. Messages are kept for other users
+    Steps:    Log in as user2 and send "Hi from user2". Log out. Log in as user1.
+    Expect:   "Hi from user2" is shown in the start room.
+
+U10. Only the last 5 messages are kept
+    Steps:    Log in as user2 and send messages "msg 1" to "msg 7". Reload the page.
+    Expect:   Only "msg 3" to "msg 7" are shown, in order.
+
+U11. Links and HTML are shown as plain text
+    Steps:    Send "<b>bold</b> https://example.com".
+    Expect:   The text is shown exactly as typed, with no bold text and no clickable link.
+
+U12. Send an image
+    Steps:    Choose a PNG file (under 2MB) with the + button.
+    Expect:   The image appears in the chat.
+
+U13. Images must be PNG
+    Steps:    Choose a JPG file with the + button.
+    Expect:   "Only PNG images can be sent." is shown and nothing is sent.
+
+U14. Group information panel
+    Steps:    Open the group info panel with the arrow button, then click Members.
+    Expect:   user1 and user2 are listed, and user1 has an Admin badge.
+
+U15. Ask to join a group
+    Steps:    Sign up a new adult user. Go to the Groups page and click Apply on "help".
+    Expect:   The button changes to "Pending".
+
+U16. Under-age users are rejected automatically
+    Steps:    Sign up a user born in 2016. Go to Groups and click Apply on "help".
+    Expect:   The group shows "Request rejected: You must be 13 or older to join this group"
+              and an "Apply again" button.
+
+U17. Request a new group
+    Steps:    On the Groups page click "Request a new group". Fill in a name, description, age limit
+              and colour, then send.
+    Expect:   A message says the request was sent to the super admin.
+
+U18. New group request needs a name
+    Steps:    Open the "Request a new group" form and send it without a name.
+    Expect:   "Please give the group a name." is shown.
+
+U19. Request a new room
+    Steps:    Log in as user2. Click "Request room", enter a room name and send.
+    Expect:   A message says the request was sent to the help admins, and the form closes.
+
+U20. My Requests
+    Steps:    After U17 and U19, open My Requests from the Groups page.
+    Expect:   Both requests are listed under Pending.
+
+U21. Leave a group
+    Steps:    Log in as user2. On the Groups page click Leave on "help" and confirm.
+    Expect:   The group shows "Apply" again, and the chat page no longer lists "help".
+
+U22. Report a member
+    Steps:    Log in as user2. Go to Settings, Submit Report. Choose "help", enter "user1" and a
+              reason, and submit.
+    Expect:   A message says the report was sent to the group admins.
+
+U23. Dark mode
+    Steps:    In Settings tick the dark mode switch, then reload the page.
+    Expect:   The page is dark, and it is still dark after reloading.
+
+U24. Change username
+    Steps:    In Settings, Change Username, enter a new name and submit.
+    Expect:   Settings shows the new username, and new chat messages use the new name.
+
+U25. Change password
+    Steps:    In Settings, Change Password:
+                a) new passwords that don't match
+                b) a wrong current password
+                c) correct details
+              Then log out and log in with the new password.
+    Expect:   a) "New passwords do not match"  b) "Current password is incorrect"
+              c) returns to Settings, and logging in with the new password works.
+
+U26. Profile photo
+    Steps:    In Settings choose a PNG with "Add photo". Go to chat and send a message.
+              Go back and click Remove.
+    Expect:   The photo shows in Settings and on the message. After Remove, the initial shows again.
+
+
+GROUP ADMIN TESTS
+-----------------
+
+A1. Only admins see Manage Group
+    Steps:    Log in as user2 (member), then as user1 (admin).
+    Expect:   user2 has no Manage Group button. user1 does, and it opens /admin/group/1.
+
+A2. Members cannot open the admin page
+    Steps:    Log in as user2 and visit /admin/group/1.
+    Expect:   The browser is sent back to /chat.
+
+A3. Approve a join request
+    Steps:    Sign up a new adult user and apply to "help". Log out. Log in as user1, open
+              Manage Group and click Approve on the request. Log in as the new user.
+    Expect:   The request disappears and the user is listed under Members. The new user sees
+              "help" on their chat page and can send a message.
+
+A4. Reject a join request with a reason
+    Steps:    As in A3, but enter a reason and click Reject. Log in as the new user and open Groups.
+    Expect:   The group shows "Request rejected" with the reason.
+
+A5. Approve a room request
+    Steps:    Log in as user2 and request a room called "memes". Log in as user1, open
+              Manage Group and approve it under Channel Requests.
+    Expect:   "memes" appears under Channels, and in the room list on the chat page.
+
+A6. Rejecting a room request needs a reason
+    Steps:    Request a room as user2. As user1, click Reject without a reason, then with one.
+              Log in as user2 and open My Requests.
+    Expect:   Without a reason an error asks for one. With a reason the request is rejected,
+              and user2 sees it under Rejected with the reason.
+
+A7. Edit group details
+    Steps:    As user1, change the description and the colour theme (e.g. Red) and save.
+    Expect:   "Saved." is shown. On the chat page the group info panel shows the new description
+              and the message area takes the new colour.
+
+A8. Raising the age limit removes under-age members
+    Steps:    Add a 15-year-old member (sign up, apply, approve as in A3). As user1, set the age
+              limit to 18 and save.
+    Expect:   A message names the removed member, and they are no longer under Members.
+
+A9. Promote and demote
+    Steps:    As user1, click Promote on user2, then Demote on user2.
+    Expect:   user2 becomes an admin, then a member again. user1's own Demote button is disabled
+              while user1 is the only admin.
+
+A10. Ban from a report
+    Steps:    Report user2 as another member (as in U22, from a third user). As user1, open
+              Manage Group and click "Ban from group" on the report, then confirm.
+              Log in as user2 and open Groups.
+    Expect:   user2 is removed from Members and listed under Banned Members.
+              user2 sees "Banned" on "help" with no Apply button.
+
+A11. Edit a room
+    Steps:    As user1, click Edit on "start", change the name to "general" and save.
+    Expect:   Channels shows "general", and so does the room list on the chat page.
+
+A12. Delete a room
+    Steps:    Create a second room (as in A5). As user1, click Delete on it and confirm.
+    Expect:   The room disappears from Channels and from the chat page.
+
+A13. Request deletion of the group
+    Steps:    As user1, enter a reason in Delete Group and click "Request deletion", then confirm.
+    Expect:   The panel says the deletion is waiting for the super admin.
