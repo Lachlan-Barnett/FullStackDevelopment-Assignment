@@ -279,11 +279,12 @@ describe('GroupAdminDashboard', () => {
   });
 
   describe('channel requests', () => {
-    it('can action your own request', async () => {
+    it("can't action your own request", async () => {
       await loadPage();
       const cards = [...panel('Channel Requests').querySelectorAll('.request-card')];
       expect(cards[0].querySelector('button')).not.toBeNull(); // user2's request
-      expect(cards[1].querySelector('button')).not.toBeNull(); // user1's own
+      expect(cards[1].textContent).toContain('another admin must review it'); // user1's own
+      expect(cards[1].querySelector('button')).toBeNull();
     });
 
     it('needs a reason to reject', async () => {
@@ -352,10 +353,10 @@ describe('GroupAdminDashboard', () => {
       expect(panel('Reports').textContent).toContain('No reports to review.');
     });
 
-    it('can act on a report you filed', async () => {
+    it('cannot act on a report you filed', async () => {
       await loadPage([], [], [{ ...report, reportedBy: 2, reporterName: 'user1' }]);
-      expect(buttonIn(panel('Reports'), 'Ban from group')).toBeTruthy();
-      expect(buttonIn(panel('Reports'), 'Dismiss')).toBeTruthy();
+      expect(panel('Reports').textContent).toContain('another admin must review it');
+      expect(panel('Reports').querySelector('button')).toBeNull();
     });
 
     it('shows the server error, e.g. trying to ban an admin', async () => {

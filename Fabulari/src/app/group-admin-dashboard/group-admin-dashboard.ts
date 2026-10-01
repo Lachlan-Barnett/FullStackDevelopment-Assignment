@@ -167,6 +167,10 @@ export class GroupAdminDashboard {
     });
   }
 
+  isOwnReport(report: Report) {
+    return report.reportedBy === this.currentUserId();
+  }
+
   // Banning removes the user from the group for good; dismissing just closes the report.
   actionReport(report: Report, action: 'ban' | 'dismiss') {
     const group = this.group();
@@ -256,6 +260,10 @@ export class GroupAdminDashboard {
           this.loadJoinRequests(group.id);
         },
       });
+  }
+
+  isOwnRequest(request: RoomRequest) {
+    return request.requestedBy === this.currentUserId();
   }
 
   // Inline editing of one channel at a time.

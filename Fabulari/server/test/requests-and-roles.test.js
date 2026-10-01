@@ -65,7 +65,7 @@ scenario('Room requests and deleting rooms', async ({ check, call, login }) => {
   await call("members can't list room requests", 403, 'GET', '/groups/1/room-requests', U2);
   r = await call('admin lists room requests', 200, 'GET', '/groups/1/room-requests', U1);
   check('room requests include the requester name', r.body.some((x) => x.requesterName === 'user2'));
-  await call('admins can approve their own request', 200, 'PUT', `/groups/1/room-requests/${own}`, U1, { approve: true });
+  await call("admins can't approve their own request", 403, 'PUT', `/groups/1/room-requests/${own}`, U1, { approve: true });
   await call('rejecting needs a reason', 400, 'PUT', `/groups/1/room-requests/${spam}`, U1, { approve: false });
   await call('reject with a reason', 200, 'PUT', `/groups/1/room-requests/${spam}`, U1, { approve: false, reason: 'nah' });
   r = await call('approve creates the room', 200, 'PUT', `/groups/1/room-requests/${memes}`, U1, { approve: true });

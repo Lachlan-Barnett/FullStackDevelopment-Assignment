@@ -74,11 +74,15 @@
             <span class="request-meta">reported by {{ report.reporterName ?? ('User #' + report.reportedBy) }} &middot; {{ report.createdAt | date: 'd MMM, h:mm a' }}</span>
           </div>
           <div class="report-reason">{{ report.reason }}</div>
-          <div class="request-actions">
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionReport(report, 'ban')">Ban from group</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="escalateReport(report)">Ask super admin to remove from Fabulari</button>
-            <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionReport(report, 'dismiss')">Dismiss</button>
-          </div>
+          @if (isOwnReport(report)) {
+            <div class="request-meta">You filed this report, so another admin must review it. If you are the only admin, promote a member first.</div>
+          } @else {
+            <div class="request-actions">
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionReport(report, 'ban')">Ban from group</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="escalateReport(report)">Ask super admin to remove from Fabulari</button>
+              <button type="button" class="btn btn-sm btn-outline-dark" (click)="actionReport(report, 'dismiss')">Dismiss</button>
+            </div>
+          }
         </div>
       } @empty {
         <p class="empty-note">No reports to review.</p>
@@ -162,17 +166,21 @@
             <span class="request-meta">requested by {{ request.requesterName ?? ('User #' + request.requestedBy) }}</span>
           </div>
           <div class="request-meta">{{ request.description || 'No description' }}</div>
-          <div class="request-actions">
-            <input
-              type="text"
-              class="form-control form-control-sm"
-              placeholder="Reason (required to reject)"
-              [attr.aria-label]="'Rejection reason for ' + request.name"
-              [(ngModel)]="rejectReasons[request.id]"
-            >
-            <button type="button" class="btn btn-sm btn-outline-success" (click)="actionRoomRequest(request, true)">Approve</button>
-            <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRoomRequest(request, false)">Reject</button>
-          </div>
+          @if (isOwnRequest(request)) {
+            <div class="request-meta">This is your own request, so another admin must review it. If you are the only admin, promote a member first.</div>
+          } @else {
+            <div class="request-actions">
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                placeholder="Reason (required to reject)"
+                [attr.aria-label]="'Rejection reason for ' + request.name"
+                [(ngModel)]="rejectReasons[request.id]"
+              >
+              <button type="button" class="btn btn-sm btn-outline-success" (click)="actionRoomRequest(request, true)">Approve</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" (click)="actionRoomRequest(request, false)">Reject</button>
+            </div>
+          }
         </div>
       } @empty {
         <p class="empty-note">No pending channel requests.</p>

@@ -101,9 +101,8 @@ scenario('Reports and group bans', async (ctx) => {
   await call('carol is promoted', 200, 'PUT', '/groups/1/members/4/role', U1, { role: 'admin' });
   const carolAdmin = await login('c@t.com', 'p');
   const rep3 = await call('carol reports user1 again', 200, 'POST', '/reports', carolAdmin, { groupId: 1, username: 'user1', reason: 'abuse' });
-  // carol may act on her own report, but user1 is an admin, so the ban is still refused.
-  r = await call('an admin can act on their own report', 409, 'PUT', `/groups/1/reports/${rep3.body.id}`, carolAdmin, { action: 'ban' });
-  check('the reason is given', /demote/i.test(r.body.message));
+  r = await call("an admin can't act on their own report", 403, 'PUT', `/groups/1/reports/${rep3.body.id}`, carolAdmin, { action: 'ban' });
+  check('the reason is given', /another admin/i.test(r.body.message));
   await call("admins can't be banned (demote first)", 409, 'PUT', `/groups/1/reports/${rep3.body.id}`, U1, { action: 'ban' });
 });
 
