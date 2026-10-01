@@ -73,7 +73,7 @@ The requirements come from the client Q&A and are numbered as in Phase 1 (FR-1 t
 | FR-35 | There is exactly one super admin. | Created by the seed script. Sign-up always creates normal users. |
 | FR-36 | The super admin approves or rejects requests for new groups. | The super admin never creates groups directly. |
 | FR-37 | The super admin approves group deletions requested by a group admin. | Deleting a group removes its rooms, messages, images and pending requests. |
-| FR-38 | The super admin removes users from the system at a group admin's request. A removed user's email can never be used again. | The account is deleted, removed from every group, and its email is blocked from signing up again (ignoring case). Refused while the user is the only admin of any group. |
+| FR-38 | The super admin removes users from the system at a group admin's request. A removed user's email can never be used again. | The account is deleted, removed from every group, and its email is blocked from signing up again (ignoring case). Refused while the user is the only admin of any group. The super admin's Removed Users list shows every removed account with its email, when it was removed, the report and who asked. |
 | FR-39 | The super admin has an audit log, filterable by type and in date order. | Every request and decision is recorded with who did it, what happened and when. The log filters by type and shows newest or oldest first. |
 | FR-40 | The super admin does not chat. | Blocked on the server, and the super admin's home page is their dashboard instead of chat. |
 
@@ -126,6 +126,7 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 | Model | Fields / Purpose |
 |---|---|
 | `User` | `id, email, username, birthdate, role, profilePhoto`. The logged-in user. |
+| `RemovedUser` | `userId, username, email, removedAt, groupName, reason, requesterName`. An account the super admin removed, for the Removed Users list. |
 | `Group`, `GroupMember` | A group and its members (`userId, role`), plus `isBanned` for the logged-in user. |
 | `GroupMemberDetails` | A member with their `username`, for member lists. |
 | `BannedMember` | `userId, username, bannedAt, bannedByName, reason`, for the banned members list. |
@@ -164,7 +165,7 @@ TypeScript interfaces in `src/app/models`, used across services and components.
 | `ChangeBirthdate` | New date of birth. |
 | `Report` | Report a member of one of your groups. |
 | `GroupAdminDashboard` | Group details, join requests, reports, members (promote and demote), banned members, channels (edit and delete), channel requests and group deletion. |
-| `SuperAdminDashboard` | Group requests, group deletion requests, user removal requests, all groups, all users and the audit log. |
+| `SuperAdminDashboard` | Group requests, group deletion requests, user removal requests, all groups, all users, removed users and the audit log. |
 
 
 ### Routes
@@ -303,6 +304,7 @@ Uploaded files are served from `/uploads`. Message history is returned by the `r
 |---|---|---|---|
 | GET | /api/admin/system-ban-requests | Pending requests to remove users from Fabulari. | Super admin |
 | PUT | /api/admin/system-ban-requests/:requestId | Decide with `{ approve, reason }`. Approving deletes the account and bans the email. `409` if the user is the only admin of a group. | Super admin |
+| GET | /api/admin/removed-users | Accounts removed from Fabulari, newest first, with `userId, username, email, removedAt, groupName, reason, requesterName`. | Super admin |
 | GET | /api/admin/audit-log | The audit log. `?type=` filters by type, `?order=oldest` shows oldest first (newest first by default). Returns `{ types, entries }`. | Super admin |
 
 The audit log records these types: `USER_SIGNED_UP`, `JOIN_REQUESTED`, `JOIN_AUTO_REJECTED`, `JOIN_APPROVED`, `JOIN_REJECTED`, `GROUP_REQUESTED`, `GROUP_CREATED`, `GROUP_REQUEST_REJECTED`, `GROUP_UPDATED`, `MEMBERS_REMOVED_AGE_LIMIT`, `GROUP_LEFT`, `MEMBER_PROMOTED`, `ADMIN_DEMOTED`, `ROOM_REQUESTED`, `ROOM_CREATED`, `ROOM_REJECTED`, `ROOM_UPDATED`, `ROOM_DELETED`, `REPORT_FILED`, `USER_BANNED_FROM_GROUP`, `REPORT_DISMISSED`, `REMOVAL_REQUESTED`, `USER_REMOVED`, `REMOVAL_REJECTED`, `GROUP_DELETE_REQUESTED`, `GROUP_DELETED` and `GROUP_DELETE_REJECTED`.
@@ -408,7 +410,7 @@ This page is only open to the group's admins. It has panels for the group's deta
 
 ![Super Admin Dashboard Wireframe](Images/3813ICT-Assignment-Super-Admin-Dashboard-Wireframe.png)
 
-This page is the super admin's home page. It has panels for group requests (FR-36), group deletion requests (FR-37), user removal requests (FR-38), all groups, all users, and the audit log with a type filter and newest or oldest first ordering (FR-39).
+This page is the super admin's home page. It has panels for group requests (FR-36), group deletion requests (FR-37), user removal requests (FR-38), all groups, all users, removed users (FR-38), and the audit log with a type filter and newest or oldest first ordering (FR-39).
 
 
 ### Responsiveness
@@ -446,7 +448,7 @@ cd Fabulari && npx cypress run              # end-to-end tests
 ```
 
 
-### Automated Unit Tests (118 tests, all passed)
+### Automated Unit Tests (120 tests, all passed)
 
 | File | Test | Result |
 |---|---|---|
@@ -563,6 +565,8 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `super-admin-dashboard.spec.ts` | removes the user after confirming and refreshes users and groups | Passed |
 | `super-admin-dashboard.spec.ts` | does not remove if the confirmation is cancelled | Passed |
 | `super-admin-dashboard.spec.ts` | shows the server error, e.g. the user is the only admin of a group | Passed |
+| `super-admin-dashboard.spec.ts` | lists removed accounts with their email, date, report and who asked | Passed |
+| `super-admin-dashboard.spec.ts` | says when nobody has been removed | Passed |
 | `super-admin-dashboard.spec.ts` | lists entries with type, who and what | Passed |
 | `super-admin-dashboard.spec.ts` | offers every type in the filter | Passed |
 | `super-admin-dashboard.spec.ts` | filters by type | Passed |
@@ -570,13 +574,13 @@ cd Fabulari && npx cypress run              # end-to-end tests
 | `super-admin-dashboard.spec.ts` | refreshes after the super admin acts | Passed |
 
 
-### Automated Server Tests (21 scenarios, 425 checks, all passed)
+### Automated Server Tests (21 scenarios, 430 checks, all passed)
 
 The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks, and every check is reported by name when the tests run.
 
 | File | Scenario | Checks | Result |
 |---|---|---|---|
-| `auth-and-users.test.js` | Login, sign-up and password hashing | 18 | Passed |
+| `auth-and-users.test.js` | Login, signup and password hashing | 18 | Passed |
 | `auth-and-users.test.js` | Changing password | 7 | Passed |
 | `auth-and-users.test.js` | Login tokens and access control | 12 | Passed |
 | `requests-and-roles.test.js` | Join requests and the age limit | 14 | Passed |
@@ -592,7 +596,7 @@ The tests are in `Fabulari/server/test/`. Each scenario runs a series of checks,
 | `moderation.test.js` | Group deletion requests | 28 | Passed |
 | `moderation.test.js` | Reports and group bans | 32 | Passed |
 | `moderation.test.js` | Banned members list | 16 | Passed |
-| `moderation.test.js` | Removing a user from Fabulari | 42 | Passed |
+| `moderation.test.js` | Removing a user from Fabulari | 47 | Passed |
 | `group-admin.test.js` | Raising the age limit removes under-age members | 33 | Passed |
 | `group-admin.test.js` | Audit log | 43 | Passed |
 | `group-admin.test.js` | Leaving a group | 16 | Passed |

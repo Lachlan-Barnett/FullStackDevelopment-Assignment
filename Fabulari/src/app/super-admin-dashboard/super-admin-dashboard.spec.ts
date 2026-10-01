@@ -6,7 +6,7 @@ import { signal } from '@angular/core';
 import { SuperAdminDashboard } from './super-admin-dashboard';
 import { AuthService } from '../services/auth.service';
 import { API_URL } from '../api.config';
-import { GroupDeleteRequest, GroupRequest, SystemBanRequest } from '../models';
+import { GroupDeleteRequest, GroupRequest, RemovedUser, SystemBanRequest } from '../models';
 
 describe('SuperAdminDashboard', () => {
   let fixture: ComponentFixture<SuperAdminDashboard>;
@@ -24,6 +24,11 @@ describe('SuperAdminDashboard', () => {
   const removal: SystemBanRequest = {
     id: 9, userId: 3, username: 'user2', email: 'user2@com.au', groupId: 1, groupName: 'help', reportId: 8,
     reason: 'spamming', requestedBy: 2, requesterName: 'user1', status: 'pending', rejectionReason: null, reviewedBy: null, createdAt: '',
+  };
+
+  const removedUser: RemovedUser = {
+    userId: 7, username: 'spammer', email: 'spam@test.com', removedAt: '2026-09-29T10:00:00.000Z', groupName: 'help',
+    reason: 'posting links', requestedBy: 2, requesterName: 'user1',
   };
 
   const auditEntries = [
@@ -60,6 +65,7 @@ describe('SuperAdminDashboard', () => {
     http.expectOne(`${API_URL}/admin/group-requests`).flush([groupRequest]);
     http.expectOne(`${API_URL}/admin/group-delete-requests`).flush([deleteRequest]);
     http.expectOne(`${API_URL}/admin/system-ban-requests`).flush([removal]);
+    http.expectOne(`${API_URL}/admin/removed-users`).flush([removedUser]);
     http.expectOne(`${API_URL}/admin/audit-log?order=newest`).flush({ types: ['GROUP_CREATED', 'USER_SIGNED_UP'], entries: auditEntries });
     await settle();
   });
@@ -123,6 +129,7 @@ describe('SuperAdminDashboard', () => {
       put.flush({ ...removal, status: 'approved' });
       http.expectOne(`${API_URL}/admin/system-ban-requests`).flush([]);
       http.expectOne(`${API_URL}/users`).flush([]);
+      http.expectOne(`${API_URL}/admin/removed-users`).flush([]);
       http.expectOne(`${API_URL}/groups`).flush([]);
     });
 
@@ -140,6 +147,22 @@ describe('SuperAdminDashboard', () => {
         .flush({ message: 'user2 is the only admin of "games". Another admin must be promoted first.' }, { status: 409, statusText: 'Conflict' });
       await settle();
       expect(el().querySelector('.error-text')?.textContent).toContain('only admin of "games"');
+    });
+  });
+
+  describe('removed users', () => {
+    it('lists removed accounts with their email, date, report and who asked', () => {
+      const text = panel('Removed Users').textContent ?? '';
+      expect(text).toContain('spammer — spam@test.com');
+      expect(text).toContain('removed 29 Sep 2026');
+      expect(text).toContain('Report in help: posting links');
+      expect(text).toContain('requested by user1');
+    });
+
+    it('says when nobody has been removed', async () => {
+      fixture.componentInstance['removedUsers'].set([]);
+      await settle();
+      expect(panel('Removed Users').textContent).toContain('No users have been removed from Fabulari.');
     });
   });
 

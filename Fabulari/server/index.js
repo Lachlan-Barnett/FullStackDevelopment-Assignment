@@ -840,6 +840,29 @@ function initializeRoutes(app, db) {
     res.json({ ...request, ...changes });
   });
 
+  // Accounts permanently removed from Fabulari, newest first (the client: the super admin can see banned accounts).
+  // The account itself is gone, so the details come from the banned email and the approved removal request.
+  app.get('/api/admin/removed-users', requireSuperAdmin, async (req, res) => {
+    const banned = await bannedEmails.find({}, NO_ID).sort({ bannedAt: -1 }).toArray();
+    const approved = await systemBanRequests
+      .find({ status: 'approved', userId: { $in: banned.map((b) => b.userId) } }, NO_ID)
+      .toArray();
+    const requestFor = new Map(approved.map((r) => [r.userId, r]));
+    const removed = banned.map((b) => {
+      const request = requestFor.get(b.userId);
+      return {
+        userId: b.userId,
+        username: request?.username ?? null,
+        email: b.email,
+        removedAt: b.bannedAt,
+        groupName: request?.groupName ?? null,
+        reason: request?.reason ?? null,
+        requestedBy: request?.requestedBy ?? null,
+      };
+    });
+    res.json(await withUsernames(removed, 'requestedBy', 'requesterName'));
+  });
+
   // The super admin's audit log. ?type= filters to one kind of entry; ?order=oldest reverses the default
   // newest-first order. The response also lists every type seen so far, for the filter dropdown.
   app.get('/api/admin/audit-log', requireSuperAdmin, async (req, res) => {

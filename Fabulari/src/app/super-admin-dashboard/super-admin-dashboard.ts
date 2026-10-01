@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { API_URL } from '../api.config';
 import { AuthService } from '../services/auth.service';
-import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, SystemBanRequest, User } from '../models';
+import { AuditLogEntry, Group, GroupDeleteRequest, GroupRequest, RemovedUser, SystemBanRequest, User } from '../models';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -20,6 +20,8 @@ export class SuperAdminDashboard {
 
   protected readonly groups = signal<Group[]>([]);
   protected readonly users = signal<User[]>([]);
+  // Accounts permanently removed from Fabulari, which no longer appear in the users list.
+  protected readonly removedUsers = signal<RemovedUser[]>([]);
   protected readonly errorMessage = signal('');
 
   // Audit log with a type filter ("" = all types) and newest/oldest ordering.
@@ -41,6 +43,7 @@ export class SuperAdminDashboard {
     this.loadGroupRequests();
     this.loadDeleteRequests();
     this.loadRemovalRequests();
+    this.loadRemovedUsers();
     this.loadAuditLog();
   }
 
@@ -94,11 +97,18 @@ export class SuperAdminDashboard {
           this.loadAuditLog();
           if (approve) {
             this.loadUsers();
+            this.loadRemovedUsers();
             this.loadGroups();
           }
         },
         error: (err) => this.errorMessage.set(err.error?.message ?? 'Unable to action that request.'),
       });
+  }
+
+  private loadRemovedUsers() {
+    this.http.get<RemovedUser[]>(`${API_URL}/admin/removed-users`).subscribe({
+      next: (removed) => this.removedUsers.set(removed),
+    });
   }
 
   private loadDeleteRequests() {

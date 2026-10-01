@@ -126,6 +126,30 @@
 
   <div class="card panel">
     <div class="card-body">
+      <div class="panel-title">Removed Users</div>
+      @for (removed of removedUsers(); track removed.userId) {
+        <div class="request-card">
+          <div class="request-header">
+            <span class="group-name">{{ removed.username ?? ('User #' + removed.userId) }} &mdash; {{ removed.email }}</span>
+            <time class="group-meta" [attr.datetime]="removed.removedAt">removed {{ removed.removedAt | date: 'd MMM y' }}</time>
+          </div>
+          @if (removed.reason) {
+            <div class="group-meta">
+              Report{{ removed.groupName ? ' in ' + removed.groupName : '' }}: {{ removed.reason }}
+              @if (removed.requesterName) {
+                &middot; requested by {{ removed.requesterName }}
+              }
+            </div>
+          }
+        </div>
+      } @empty {
+        <p class="empty-note">No users have been removed from Fabulari.</p>
+      }
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="card-body">
       <div class="panel-title">Audit Log</div>
       <div class="audit-controls">
         <label for="auditType" class="form-label">Type</label>

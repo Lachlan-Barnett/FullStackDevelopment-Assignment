@@ -168,6 +168,13 @@ scenario('Removing a user from Fabulari', async (ctx) => {
   await call('the email block ignores capitals', 403, 'POST', '/signup', null, { email: 'USER2@COM.AU', username: 'back', password: 'x' });
   await call("can't action twice", 409, 'PUT', `/admin/system-ban-requests/${request}`, SA, { approve: true });
 
+  await call("group admins can't list removed users", 403, 'GET', '/admin/removed-users', U1);
+  r = await call('super admin lists removed users', 200, 'GET', '/admin/removed-users', SA);
+  const removed = r.body[0];
+  check('the removed account is listed with its email', r.body.length === 1 && removed.username === 'user2' && removed.email === 'user2@com.au');
+  check('it shows the report, the group and who asked', removed.reason === 'harassment' && removed.groupName === 'help' && removed.requesterName === 'user1');
+  check('it shows when they were removed', !Number.isNaN(Date.parse(removed.removedAt)));
+
   await addMember(ctx, 'd@t.com', 'dave');
   const rep4 = await call('carol reports dave', 200, 'POST', '/reports', carol, { groupId: 1, username: 'dave', reason: 'minor' });
   const req4 = (await call('admin escalates', 200, 'POST', `/groups/1/reports/${rep4.body.id}/escalate`, U1, {})).body.id;
